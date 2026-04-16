@@ -190,10 +190,20 @@
         document.body.appendChild(form);
         form.submit();
         form.remove();
-        // 60초 타임아웃
+        // 타임아웃: 파일 크기 기반 (1MB당 10초, 최소 30초)
+        var timeoutMs = Math.max(30000, Math.round(item.blob.size / 1048576) * 10000);
         setTimeout(function() {
-          if (uploading) { uploading = false; processUploadQueue(); }
-        }, 60000);
+          if (uploading) {
+            uploading = false;
+            document.getElementById('conn').textContent = '⚠️ 업로드 타임아웃 — 로컬 저장';
+            // 로컬 다운로드 폴백
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(item.blob);
+            a.download = item.filename;
+            a.click();
+            processUploadQueue();
+          }
+        }, timeoutMs);
       };
       reader.readAsDataURL(item.blob);
     }
