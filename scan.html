@@ -110,6 +110,7 @@
             scannerPaused = true;
             html5Qr.pause(true);
             document.getElementById('scanInput').value = num;
+            scanFeedback();
             sendToSheet(num);
           }
         },
@@ -124,7 +125,7 @@
     // ── 입력완료 ──
     function doScan() {
       var num = document.getElementById('scanInput').value.trim().replace(/\D/g,'');
-      if (num.length >= 8) sendToSheet(num);
+      if (num.length >= 8) { scanFeedback(); sendToSheet(num); }
       else toast('운송장번호를 확인하세요');
     }
     document.getElementById('scanInput').addEventListener('keydown', function(e) {
@@ -218,6 +219,19 @@
     // ── 유틸 ──
     function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
     function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},3000)}
+
+    // 스캔 성공 피드백 (진동 + 비프음)
+    function scanFeedback() {
+      try { navigator.vibrate([100, 50, 100]); } catch(e) {}
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 1200; gain.gain.value = 0.3;
+        osc.start(); osc.stop(ctx.currentTime + 0.15);
+      } catch(e) {}
+    }
   </script>
 </body>
 </html>
