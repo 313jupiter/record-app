@@ -152,18 +152,13 @@
 
           if (result.status === 'matched') {
             area.innerHTML =
-              '<div class="result-card ok"><b>✅ ' + result.items.length + '건 매칭</b>' +
-              '<p>' + esc(result.items[0].supplier) + '<br>' +
-              esc(result.items[0].brand) + ' ' + esc(result.items[0].product) + '</p></div>' +
-              '<div class="result-card info"><b>📋 컴퓨터 구글 시트에서 수량 입력 후 Z열 체크하세요</b>' +
-              '<p>해당 행으로 자동 이동됩니다 (행 ' + result.items[0].row + ')<br>📹 촬영이 자동 시작되었습니다</p></div>' +
+              '<div class="result-card ok"><b>✅ ' + result.items.length + '건 매칭 완료</b></div>' +
+              '<div class="result-card info"><p>📋 <b>컴퓨터 구글 시트</b>에서 수량 입력 후 Z열 체크<br>📹 촬영 자동 시작됨</p></div>' +
               '<button class="btn btn-green" onclick="nextScan()">📦 다음 운송장 스캔</button>';
             addHistory(num, '✅ 매칭 ' + result.items.length + '건');
           } else if (result.status === 'unmatched') {
             area.innerHTML =
-              '<div class="result-card warn"><b>⚠️ 미등록 운송장</b>' +
-              '<p>n차 배송 가능성 — 컴퓨터 구글 시트에서 후보 확인하세요<br>' +
-              '부분입고 후보 ' + (result.candidates ? result.candidates.length : 0) + '건</p></div>' +
+              '<div class="result-card warn"><b>⚠️ 미등록 운송장</b><p>📋 <b>컴퓨터 구글 시트</b>에서 후보 확인</p></div>' +
               '<button class="btn btn-green" onclick="nextScan()">📦 다음 운송장 스캔</button>';
             addHistory(num, '⚠️ 미매칭');
           }
