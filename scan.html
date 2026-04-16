@@ -139,16 +139,18 @@
 
       var worker = localStorage.getItem('worker') || '작업자';
 
-      fetch(GAS_URL + '?action=scan&num=' + encodeURIComponent(num) + '&worker=' + encodeURIComponent(worker))
-        .then(function(r) { return r.text(); })
-        .then(function(text) {
-          var result;
-          try { result = JSON.parse(text); } catch(e) { result = { error: text }; }
+      var retryCount = 0;
+      function doFetch() {
+        fetch(GAS_URL + '?action=scan&num=' + encodeURIComponent(num) + '&worker=' + encodeURIComponent(worker))
+          .then(function(r) { return r.text(); })
+          .then(function(text) {
+            var result;
+            try { result = JSON.parse(text); } catch(e) { result = { error: text }; }
 
-          if (result.error) {
-            area.innerHTML = '<div class="result-card warn"><b>⚠️ 오류</b><p>' + result.error + '</p></div>';
-            return;
-          }
+            if (result.error) {
+              area.innerHTML = '<div class="result-card warn"><b>⚠️ 오류</b><p>' + result.error + '</p></div>';
+              return;
+            }
 
           if (result.status === 'matched') {
             area.innerHTML =
@@ -167,8 +169,17 @@
           }
         })
         .catch(function(e) {
-          area.innerHTML = '<div class="result-card warn"><b>네트워크 오류</b><p>' + e.message + '</p></div>';
+          if (retryCount < 2) {
+            retryCount++;
+            area.innerHTML = '<div class="loading"><div class="spinner"></div>재시도 중 (' + retryCount + '/2)...</div>';
+            setTimeout(doFetch, 2000);
+          } else {
+            area.innerHTML = '<div class="result-card warn"><b>네트워크 오류</b><p>' + e.message + '<br>인터넷 연결을 확인하세요</p></div>' +
+              '<button class="btn btn-green" onclick="nextScan()">📦 다시 시도</button>';
+          }
         });
+      }
+      doFetch();
     }
 
     // ── 다음 스캔 ──

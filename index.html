@@ -94,8 +94,8 @@
       for (var i = 0; i < opts.length; i++) {
         if (MediaRecorder.isTypeSupported(opts[i])) { mimeType = opts[i]; break; }
       }
-      // 비트레이트: 기기 최대 (10Mbps — 상품 라벨/사이즈 식별 가능)
-      recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 10000000 });
+      // 5Mbps — 1080p 고화질 + GAS 50MB 제한 이내 (1분=~37MB)
+      recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 5000000 });
       recorder.ondataavailable = function(e) { if(e.data.size>0) chunks.push(e.data); };
       recorder.onstop = function() { saveVideo(new Blob(chunks,{type: lastMimeType || 'video/webm'})); };
       recorder.start(500);  // 500ms 간격 chunk (프레임 손실 최소화)
@@ -238,7 +238,7 @@
 
     // ── 시작 ──
     initCamera();
-    setInterval(poll, 2000);
+    setInterval(poll, 1500);  // 1.5초 간격 폴링 (촬영 시작 딜레이 최소화)
   </script>
 </body>
 </html>
