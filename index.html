@@ -51,9 +51,19 @@
     async function initCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} },
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30, min: 24 }
+          },
           audio: false
         });
+        // 카메라 스펙 표시
+        var track = stream.getVideoTracks()[0];
+        var settings = track.getSettings();
+        document.getElementById('conn').textContent =
+          '● ' + settings.width + 'x' + settings.height + ' ' + settings.frameRate + 'fps';
         document.getElementById('camera').srcObject = stream;
         document.getElementById('st').textContent = '📹 대기 중';
         document.getElementById('sb').textContent = 'scan.html에서 운송장 스캔 후 촬영이 자동 시작됩니다';
@@ -70,17 +80,20 @@
       if (!stream || recorder) return;
       curOrder = order;
       chunks = [];
-      // mp4 우선 (iOS Safari), 안 되면 webm 폴백
+      // 최적 코덱 선택: mp4(H.264) 우선 → webm(H.264) → webm(VP9)
       var mimeType = 'video/webm;codecs=vp9';
-      if (MediaRecorder.isTypeSupported('video/mp4')) {
+      if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1')) {
+        mimeType = 'video/mp4;codecs=avc1';
+      } else if (MediaRecorder.isTypeSupported('video/mp4')) {
         mimeType = 'video/mp4';
       } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
         mimeType = 'video/webm;codecs=h264';
       }
-      recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 1500000 });
+      // 4Mbps — 1080p 30fps에 충분한 화질 (SKU 사이즈 라벨 판독 가능)
+      recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 4000000 });
       recorder.ondataavailable = function(e) { if(e.data.size>0) chunks.push(e.data); };
       recorder.onstop = function() { saveVideo(new Blob(chunks,{type: lastMimeType || 'video/webm'})); };
-      recorder.start(1000);
+      recorder.start(500);  // 500ms 간격 chunk (프레임 손실 최소화)
       startTime = Date.now();
       document.getElementById('rec').classList.add('on');
       document.getElementById('st').textContent = '🔴 녹화 중';
