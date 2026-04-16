@@ -156,11 +156,14 @@
               '<div class="result-card info"><p>📋 <b>컴퓨터 구글 시트</b>에서 수량 입력 후 Z열 체크<br>📹 촬영 자동 시작됨</p></div>' +
               '<button class="btn btn-green" onclick="nextScan()">📦 다음 운송장 스캔</button>';
             addHistory(num, '✅ 매칭 ' + result.items.length + '건');
+            // 3초 후 자동 스캐너 재개
+            setTimeout(nextScan, 3000);
           } else if (result.status === 'unmatched') {
             area.innerHTML =
               '<div class="result-card warn"><b>⚠️ 미등록 운송장</b><p>📋 <b>컴퓨터 구글 시트</b>에서 후보 확인</p></div>' +
               '<button class="btn btn-green" onclick="nextScan()">📦 다음 운송장 스캔</button>';
             addHistory(num, '⚠️ 미매칭');
+            setTimeout(nextScan, 3000);
           }
         })
         .catch(function(e) {
