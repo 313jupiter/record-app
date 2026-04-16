@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>📹 검수 촬영</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#000;color:#fff;min-height:100vh;overflow:hidden}
+    #camera{width:100vw;height:100vh;object-fit:cover;position:fixed;top:0;left:0}
+    .top{position:fixed;top:0;left:0;right:0;background:rgba(0,0,0,.6);padding:12px 16px;z-index:10;display:flex;justify-content:space-between;align-items:center}
+    .info{font-size:14px;line-height:1.4}
+    .info .lbl{color:#aaa;font-size:11px}
+    .info .val{font-weight:600}
+    .rec{display:none;background:#d93025;color:#fff;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700;align-items:center;gap:6px}
+    .rec.on{display:flex}
+    .dot{width:8px;height:8px;background:#fff;border-radius:50%;animation:p 1s infinite}
+    @keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+    .bot{position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);padding:20px 16px;z-index:10;text-align:center}
+    .status{font-size:16px;font-weight:600;margin-bottom:8px}
+    .sub{font-size:12px;color:#aaa}
+    .timer{font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;margin:8px 0}
+    .conn{position:fixed;top:60px;right:16px;z-index:10;font-size:11px;padding:4px 10px;border-radius:12px;background:rgba(0,0,0,.5)}
+    .conn.ok{color:#0d904f}.conn.wait{color:#e37400}
+  </style>
+</head>
+<body>
+  <video id="camera" autoplay muted playsinline></video>
+  <div class="top">
+    <div class="info">
+      <div class="lbl" id="lbl">대기 중</div>
+      <div class="val" id="val">scan.html에서 운송장을 스캔하세요</div>
+    </div>
+    <div class="rec" id="rec"><div class="dot"></div>REC</div>
+  </div>
+  <div class="conn wait" id="conn">● 연결 대기중</div>
+  <div class="bot">
+    <div class="status" id="st">📹 카메라 준비 중...</div>
+    <div class="timer" id="tm" style="display:none">00:00</div>
+    <div class="sub" id="sb">scan.html에서 운송장 스캔 후 촬영이 자동 시작됩니다</div>
+  </div>
+
+  <script>
+    // ── 설정 ──
+    var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxkNDf2iq0pgaQsgmZcuhShUP07XnNdS53CMfwN5712z853qz39DafFb5_ItbhGROum/exec';
+    var SPREADSHEET_ID = '1nHJF8yzm5TaLOu7Od-OFfd5hglW7bDfdfDZLbhREwU0';
+
+    var stream = null, recorder = null, chunks = [], timerInt = null, startTime = null, curOrder = null;
+
+    // ── 카메라 ──
+    async function initCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} },
+          audio: false
+        });
+        document.getElementById('camera').srcObject = stream;
+        document.getElementById('st').textContent = '📹 대기 중';
+        document.getElementById('sb').textContent = 'scan.html에서 운송장 스캔 후 촬영이 자동 시작됩니다';
+        document.getElementById('conn').textContent = '● 카메라 준비됨';
+        document.getElementById('conn').className = 'conn ok';
+      } catch(e) {
+        document.getElementById('st').textContent = '❌ 카메라 접근 실패';
+        document.getElementById('sb').textContent = e.message;
+      }
+    }
+
+    // ── 녹화 ──
+    function startRec(order) {
+      if (!stream || recorder) return;
+      curOrder = order;
+      chunks = [];
+      recorder = new MediaRecorder(stream, { mimeType:'video/webm;codecs=vp9', videoBitsPerSecond:2500000 });
+      recorder.ondataavailable = function(e) { if(e.data.size>0) chunks.push(e.data); };
+      recorder.onstop = function() { saveVideo(new Blob(chunks,{type:'video/webm'})); };
+      recorder.start(1000);
+      startTime = Date.now();
+      document.getElementById('rec').classList.add('on');
+      document.getElementById('st').textContent = '🔴 녹화 중';
+      document.getElementById('tm').style.display = 'block';
+      document.getElementById('val').textContent = (order.product||'') + ' — ' + (order.supplier||'');
+      document.getElementById('lbl').textContent = '운송장: ' + (order.trackingNum||'');
+      timerInt = setInterval(updateTimer, 1000);
+    }
+
+    function stopRec() {
+      if (!recorder || recorder.state==='inactive') return;
+      recorder.stop();
+      recorder = null;
+      clearInterval(timerInt);
+      document.getElementById('rec').classList.remove('on');
+      document.getElementById('st').textContent = '⏳ 영상 저장 중...';
+    }
+
+    function updateTimer() {
+      if (!startTime) return;
+      var s = Math.floor((Date.now()-startTime)/1000);
+      document.getElementById('tm').textContent = String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+    }
+
+    // ── 영상 저장 (Google Drive via Apps Script) ──
+    function saveVideo(blob) {
+      var filename = 'inspection_' + (curOrder?curOrder.trackingNum||'unknown':'unknown')
+        + '_' + new Date().toISOString().slice(0,19).replace(/[:.]/g,'-') + '.webm';
+      document.getElementById('sb').textContent = '업로드 중... (' + Math.round(blob.size/1024) + 'KB)';
+
+      var reader = new FileReader();
+      reader.onload = function() {
+        var base64 = reader.result.split(',')[1];
+        // Google Apps Script로 업로드 (JSONP 방식)
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = APPS_SCRIPT_URL;
+        form.target = 'uploadFrame';
+
+        var fields = {
+          action: 'uploadVideo',
+          filename: filename,
+          data: base64,
+          order: JSON.stringify(curOrder||{})
+        };
+        for (var k in fields) {
+          var input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = k;
+          input.value = fields[k];
+          form.appendChild(input);
+        }
+
+        // iframe으로 전송 (CORS 우회)
+        var iframe = document.getElementById('uploadFrame');
+        if (!iframe) {
+          iframe = document.createElement('iframe');
+          iframe.id = 'uploadFrame';
+          iframe.name = 'uploadFrame';
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+        }
+        document.body.appendChild(form);
+        form.submit();
+        form.remove();
+
+        // 3초 후 완료 표시 (iframe 응답 대기)
+        setTimeout(function() {
+          document.getElementById('st').textContent = '✅ 저장 완료';
+          document.getElementById('sb').textContent = 'Google Drive에 업로드됨';
+          document.getElementById('tm').style.display = 'none';
+          setTimeout(resetUI, 3000);
+        }, 5000);
+      };
+      reader.readAsDataURL(blob);
+    }
+
+    function resetUI() {
+      document.getElementById('st').textContent = '📹 대기 중';
+      document.getElementById('sb').textContent = '다음 택배를 기다리는 중...';
+      document.getElementById('val').textContent = 'scan.html에서 운송장을 스캔하세요';
+      document.getElementById('lbl').textContent = '대기 중';
+      curOrder = null;
+    }
+
+    // ── 명령 폴링 (시트6 A1 via Apps Script GET) ──
+    function poll() {
+      fetch(APPS_SCRIPT_URL + '?action=getCommand')
+        .then(function(r) { return r.text(); })
+        .then(function(text) {
+          try {
+            var cmd = JSON.parse(text);
+            if (cmd.action === 'start' && !recorder) {
+              startRec(cmd);
+              // 명령 클리어
+              fetch(APPS_SCRIPT_URL + '?action=clearCommand');
+            } else if (cmd.action === 'stop' && recorder) {
+              stopRec();
+              fetch(APPS_SCRIPT_URL + '?action=clearCommand');
+            }
+          } catch(e) {}
+        })
+        .catch(function() {});
+    }
+
+    // ── 시작 ──
+    initCamera();
+    setInterval(poll, 2000);
+  </script>
+</body>
+</html>
