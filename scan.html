@@ -85,10 +85,8 @@
 
     var recStart = null, recInt = null;
 
-    // ── 바코드 스캐너 초기화 ──
-    var scanner = new Html5QrcodeScanner("reader", {
-      fps: 10,
-      qrbox: { width: 280, height: 100 },
+    // ── 바코드 스캐너 초기화 (low-level API로 1D 바코드 최적화) ──
+    var scanner = new Html5Qrcode("reader", {
       formatsToSupport: [
         Html5QrcodeSupportedFormats.CODE_128,
         Html5QrcodeSupportedFormats.CODE_39,
@@ -96,17 +94,57 @@
         Html5QrcodeSupportedFormats.EAN_13,
         Html5QrcodeSupportedFormats.CODABAR,
       ],
-      rememberLastUsedCamera: true,
-      showTorchButtonIfSupported: true,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
     });
-    scanner.render(function(text) {
-      var num = text.replace(/\D/g, '');
-      if (num.length >= 8) {
-        document.getElementById('scanInput').value = num;
-        scanner.pause(true);
-        processTracking(num);
-      }
-    }, function() {});
+    var scannerPaused = false;
+
+    function startScanner() {
+      scannerPaused = false;
+      // 1D 바코드용 qrbox: 화면 너비의 90%, 높이 120px (가로로 넓게)
+      var readerW = document.getElementById('reader').clientWidth || 340;
+      var qrW = Math.min(Math.floor(readerW * 0.9), 500);
+      var qrH = 120;
+
+      scanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 15,
+          qrbox: { width: qrW, height: qrH },
+          aspectRatio: 16/9,
+          videoConstraints: {
+            facingMode: "environment",
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            advanced: [{ focusMode: "continuous" }],
+          },
+        },
+        function onSuccess(text) {
+          if (scannerPaused) return;
+          var num = text.replace(/\D/g, '');
+          if (num.length >= 8) {
+            scannerPaused = true;
+            scanner.pause(true);
+            document.getElementById('scanInput').value = num;
+            processTracking(num);
+          }
+        },
+        function onError() {}
+      ).catch(function(err) {
+        console.warn('Scanner start failed:', err);
+        // 카메라 실패 시 수동 입력 안내
+        document.getElementById('reader').innerHTML =
+          '<div style="padding:20px;text-align:center;color:#888">카메라를 사용할 수 없습니다.<br>운송장번호를 직접 입력하세요.</div>';
+      });
+    }
+    startScanner();
+
+    // ── 다음 스캔 (스캐너 재개) ──
+    function resumeScanner() {
+      document.getElementById('scanInput').value = '';
+      scannerPaused = false;
+      try { scanner.resume(); } catch(e) { startScanner(); }
+      toast('다음 운송장을 스캔하세요');
+    }
 
     // ── 입력완료 버튼 / Enter ──
     function doSearch() {
@@ -232,6 +270,7 @@
         html += '<div class="guide">📹 촬영이 자동 시작됩니다. 박스를 개봉하고 수량을 확인하세요.</div>';
         html += '<a class="sheet-link" href="https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID +
                 '/edit#gid=994113401&range=A' + result.items[0].row + '" target="_blank">📋 구글 시트에서 입고 처리 (행 ' + result.items[0].row + ')</a>';
+        html += '<button class="btn btn-blue" style="margin-top:8px" onclick="resumeScanner()">📦 다음 운송장 스캔</button>';
         startRecTimer();
         // 촬영 시작 명령
         sendCommand('start', { trackingNum: trackingNum, supplier: result.items[0].supplier, product: result.items[0].brand + ' ' + result.items[0].product });
