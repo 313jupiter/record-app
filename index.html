@@ -174,12 +174,14 @@
         }
         iframe.onload = function() {
           uploading = false;
+          document.getElementById('conn').textContent = '● 업로드 완료 (' + item.filename + ')';
+          document.getElementById('conn').className = 'conn ok';
           if (uploadQueue.length > 0) {
             document.getElementById('sb').textContent = '업로드 대기 ' + uploadQueue.length + '건';
             processUploadQueue();
           } else {
             document.getElementById('st').textContent = '📹 대기 중';
-            document.getElementById('sb').textContent = '✅ 모든 영상 업로드 완료';
+            document.getElementById('sb').textContent = '✅ 모든 영상 업로드 완료 — AK열 URL 기입됨';
             setTimeout(function() {
               document.getElementById('sb').textContent = 'scan.html에서 운송장 스캔 후 촬영이 자동 시작됩니다';
             }, 3000);
