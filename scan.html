@@ -176,7 +176,13 @@
       document.getElementById('scanInput').value = '';
       document.getElementById('resultArea').className = 'result';
       scannerPaused = false;
-      try { html5Qr.resume(); } catch(e) { startScanner(); }
+      try {
+        html5Qr.resume();
+      } catch(e) {
+        // resume 실패 시 스캐너 완전 재시작
+        try { html5Qr.stop(); } catch(ex) {}
+        setTimeout(startScanner, 500);
+      }
     }
 
     // ── 스캔 이력 ──
