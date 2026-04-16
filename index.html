@@ -70,9 +70,16 @@
       if (!stream || recorder) return;
       curOrder = order;
       chunks = [];
-      recorder = new MediaRecorder(stream, { mimeType:'video/webm;codecs=vp9', videoBitsPerSecond:2500000 });
+      // mp4 우선 (iOS Safari), 안 되면 webm 폴백
+      var mimeType = 'video/webm;codecs=vp9';
+      if (MediaRecorder.isTypeSupported('video/mp4')) {
+        mimeType = 'video/mp4';
+      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
+        mimeType = 'video/webm;codecs=h264';
+      }
+      recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 1500000 });
       recorder.ondataavailable = function(e) { if(e.data.size>0) chunks.push(e.data); };
-      recorder.onstop = function() { saveVideo(new Blob(chunks,{type:'video/webm'})); };
+      recorder.onstop = function() { saveVideo(new Blob(chunks,{type: lastMimeType || 'video/webm'})); };
       recorder.start(1000);
       startTime = Date.now();
       document.getElementById('rec').classList.add('on');
@@ -83,8 +90,10 @@
       timerInt = setInterval(updateTimer, 1000);
     }
 
+    var lastMimeType = 'video/webm';
     function stopRec() {
       if (!recorder || recorder.state==='inactive') return;
+      lastMimeType = recorder.mimeType || 'video/webm';
       recorder.stop();
       recorder = null;
       clearInterval(timerInt);
@@ -99,64 +108,74 @@
     }
 
     // ── 영상 저장 (Google Drive via Apps Script) ──
+    var uploadQueue = [];  // 백그라운드 업로드 큐
+    var uploading = false;
+
     function saveVideo(blob) {
+      var ext = lastMimeType.indexOf('mp4') >= 0 ? '.mp4' : '.webm';
       var filename = 'inspection_' + (curOrder?curOrder.trackingNum||'unknown':'unknown')
-        + '_' + new Date().toISOString().slice(0,19).replace(/[:.]/g,'-') + '.webm';
-      document.getElementById('sb').textContent = '업로드 중... (' + Math.round(blob.size/1024) + 'KB)';
+        + '_' + new Date().toISOString().slice(0,19).replace(/[:.]/g,'-') + ext;
+      var sizeMB = (blob.size / 1048576).toFixed(1);
+
+      // 즉시 UI 리셋 → 다음 스캔 가능
+      document.getElementById('st').textContent = '📤 백그라운드 업로드 중 (' + sizeMB + 'MB)';
+      document.getElementById('sb').textContent = '다음 택배를 처리할 수 있습니다';
+      document.getElementById('tm').style.display = 'none';
+
+      // 업로드 큐에 추가
+      uploadQueue.push({ blob: blob, filename: filename, order: curOrder });
+      curOrder = null;
+      processUploadQueue();
+    }
+
+    function processUploadQueue() {
+      if (uploading || uploadQueue.length === 0) return;
+      uploading = true;
+      var item = uploadQueue.shift();
+      var remaining = uploadQueue.length;
 
       var reader = new FileReader();
       reader.onload = function() {
         var base64 = reader.result.split(',')[1];
-        // Google Apps Script로 업로드 (JSONP 방식)
         var form = document.createElement('form');
         form.method = 'POST';
         form.action = APPS_SCRIPT_URL;
         form.target = 'uploadFrame';
-
-        var fields = {
-          action: 'uploadVideo',
-          filename: filename,
-          data: base64,
-          order: JSON.stringify(curOrder||{})
-        };
+        var fields = { action:'uploadVideo', filename:item.filename, data:base64, order:JSON.stringify(item.order||{}) };
         for (var k in fields) {
-          var input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = k;
-          input.value = fields[k];
-          form.appendChild(input);
+          var inp = document.createElement('input');
+          inp.type = 'hidden'; inp.name = k; inp.value = fields[k];
+          form.appendChild(inp);
         }
-
-        // iframe으로 전송 (CORS 우회)
         var iframe = document.getElementById('uploadFrame');
         if (!iframe) {
           iframe = document.createElement('iframe');
-          iframe.id = 'uploadFrame';
-          iframe.name = 'uploadFrame';
+          iframe.id = 'uploadFrame'; iframe.name = 'uploadFrame';
           iframe.style.display = 'none';
           document.body.appendChild(iframe);
         }
+        iframe.onload = function() {
+          uploading = false;
+          if (uploadQueue.length > 0) {
+            document.getElementById('sb').textContent = '업로드 대기 ' + uploadQueue.length + '건';
+            processUploadQueue();
+          } else {
+            document.getElementById('st').textContent = '📹 대기 중';
+            document.getElementById('sb').textContent = '✅ 모든 영상 업로드 완료';
+            setTimeout(function() {
+              document.getElementById('sb').textContent = 'scan.html에서 운송장 스캔 후 촬영이 자동 시작됩니다';
+            }, 3000);
+          }
+        };
         document.body.appendChild(form);
         form.submit();
         form.remove();
-
-        // iframe 응답 감지
-        iframe.onload = function() {
-          document.getElementById('st').textContent = '✅ 저장 완료';
-          document.getElementById('sb').textContent = 'Google Drive에 업로드됨';
-          document.getElementById('tm').style.display = 'none';
-          setTimeout(resetUI, 3000);
-        };
-        // 폴백: 30초 후 완료 표시
+        // 60초 타임아웃
         setTimeout(function() {
-          if (document.getElementById('st').textContent.indexOf('업로드') >= 0) {
-            document.getElementById('st').textContent = '✅ 저장 완료 (확인 필요)';
-            document.getElementById('tm').style.display = 'none';
-            setTimeout(resetUI, 3000);
-          }
-        }, 30000);
+          if (uploading) { uploading = false; processUploadQueue(); }
+        }, 60000);
       };
-      reader.readAsDataURL(blob);
+      reader.readAsDataURL(item.blob);
     }
 
     function resetUI() {
