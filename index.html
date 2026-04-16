@@ -50,20 +50,21 @@
     // ── 카메라 ──
     async function initCamera() {
       try {
+        // 기기 최대 해상도 + 최대 프레임레이트
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'environment',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            frameRate: { ideal: 30, min: 24 }
+            width: { ideal: 4096 },
+            height: { ideal: 2160 },
+            frameRate: { ideal: 60 }
           },
           audio: false
         });
-        // 카메라 스펙 표시
         var track = stream.getVideoTracks()[0];
         var settings = track.getSettings();
         document.getElementById('conn').textContent =
-          '● ' + settings.width + 'x' + settings.height + ' ' + settings.frameRate + 'fps';
+          '● ' + settings.width + 'x' + settings.height + ' ' + (settings.frameRate||30) + 'fps';
+        document.getElementById('conn').className = 'conn ok';
         document.getElementById('camera').srcObject = stream;
         document.getElementById('st').textContent = '📹 대기 중';
         document.getElementById('sb').textContent = 'scan.html에서 운송장 스캔 후 촬영이 자동 시작됩니다';
@@ -80,17 +81,21 @@
       if (!stream || recorder) return;
       curOrder = order;
       chunks = [];
-      // 최적 코덱 선택: mp4(H.264) 우선 → webm(H.264) → webm(VP9)
-      var mimeType = 'video/webm;codecs=vp9';
-      if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1')) {
-        mimeType = 'video/mp4;codecs=avc1';
-      } else if (MediaRecorder.isTypeSupported('video/mp4')) {
-        mimeType = 'video/mp4';
-      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
-        mimeType = 'video/webm;codecs=h264';
+      // 기기 최대 화질: mp4 우선, 비트레이트 최대
+      var mimeType = 'video/webm';
+      var opts = [
+        'video/mp4;codecs=avc1.640033',  // H.264 High Profile Level 5.1
+        'video/mp4;codecs=avc1',
+        'video/mp4',
+        'video/webm;codecs=h264',
+        'video/webm;codecs=vp9',
+        'video/webm'
+      ];
+      for (var i = 0; i < opts.length; i++) {
+        if (MediaRecorder.isTypeSupported(opts[i])) { mimeType = opts[i]; break; }
       }
-      // 4Mbps — 1080p 30fps에 충분한 화질 (SKU 사이즈 라벨 판독 가능)
-      recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 4000000 });
+      // 비트레이트: 기기 최대 (10Mbps — 상품 라벨/사이즈 식별 가능)
+      recorder = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 10000000 });
       recorder.ondataavailable = function(e) { if(e.data.size>0) chunks.push(e.data); };
       recorder.onstop = function() { saveVideo(new Blob(chunks,{type: lastMimeType || 'video/webm'})); };
       recorder.start(500);  // 500ms 간격 chunk (프레임 손실 최소화)
