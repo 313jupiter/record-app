@@ -140,13 +140,21 @@
         form.submit();
         form.remove();
 
-        // 3초 후 완료 표시 (iframe 응답 대기)
-        setTimeout(function() {
+        // iframe 응답 감지
+        iframe.onload = function() {
           document.getElementById('st').textContent = '✅ 저장 완료';
           document.getElementById('sb').textContent = 'Google Drive에 업로드됨';
           document.getElementById('tm').style.display = 'none';
           setTimeout(resetUI, 3000);
-        }, 5000);
+        };
+        // 폴백: 30초 후 완료 표시
+        setTimeout(function() {
+          if (document.getElementById('st').textContent.indexOf('업로드') >= 0) {
+            document.getElementById('st').textContent = '✅ 저장 완료 (확인 필요)';
+            document.getElementById('tm').style.display = 'none';
+            setTimeout(resetUI, 3000);
+          }
+        }, 30000);
       };
       reader.readAsDataURL(blob);
     }
