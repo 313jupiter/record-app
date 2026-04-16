@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>📦 까대기 스캔</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#333;min-height:100vh}
+    .header{background:#1a73e8;color:#fff;padding:16px 20px;font-size:18px;font-weight:600;position:sticky;top:0;z-index:100;display:flex;justify-content:space-between;align-items:center}
+    .rec-status{font-size:12px;display:none;align-items:center;gap:4px}
+    .rec-status.on{display:flex}
+    .rec-dot{width:8px;height:8px;background:#f44;border-radius:50%;animation:bk 1s infinite}
+    @keyframes bk{0%,100%{opacity:1}50%{opacity:.3}}
+    .container{padding:12px;max-width:500px;margin:0 auto}
+    .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+    .card h3{font-size:15px;margin-bottom:10px;color:#1a73e8}
+    #reader{width:100%;margin-bottom:10px;border-radius:10px;overflow:hidden}
+    .scan-input{width:100%;padding:14px;font-size:18px;font-weight:600;border:3px solid #1a73e8;border-radius:10px;outline:none;text-align:center;background:#f0f7ff}
+    .scan-input:focus{border-color:#0d47a1;background:#fff}
+    .btn{width:100%;padding:14px;margin-top:8px;font-size:17px;font-weight:700;color:#fff;border:none;border-radius:10px;cursor:pointer}
+    .btn:active{transform:scale(.98)}
+    .btn-blue{background:#1a73e8}
+    .btn-green{background:#0d904f}
+    .btn-blue:disabled,.btn-green:disabled{background:#ccc}
+    .info-box{background:#f0fdf4;border:2px solid #0d904f;border-radius:10px;padding:12px 14px;margin-top:10px}
+    .info-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #e8eaed}
+    .info-row:last-child{border:none}
+    .info-label{font-size:13px;color:#666}
+    .info-value{font-size:14px;font-weight:700;color:#0d904f}
+    .result{display:none}.result.show{display:block}
+    .match-card{background:#fff;border-radius:12px;padding:14px;margin-bottom:8px;border:2px solid #e8eaed;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+    .match-card.ok{border-color:#0d904f;background:#f0fdf4}
+    .match-card.warn{border-color:#e37400;background:#fffbeb}
+    .item-name{font-size:14px;font-weight:600}
+    .item-meta{font-size:12px;color:#888;margin-top:2px}
+    .item-qty{font-size:13px;color:#1a73e8;font-weight:600;margin-top:4px}
+    .guide{background:#e8f0fe;border-radius:10px;padding:12px;margin:12px 0;font-size:13px;line-height:1.6;color:#1a73e8}
+    .sheet-link{display:block;text-align:center;padding:14px;margin:12px 0;background:#0d904f;color:#fff;border-radius:10px;font-size:16px;font-weight:700;text-decoration:none}
+    .btn-select{width:100%;padding:10px;margin-top:8px;font-size:14px;font-weight:600;background:#1a73e8;color:#fff;border:none;border-radius:8px;cursor:pointer}
+    .loading{text-align:center;padding:20px;color:#888}
+    .spinner{width:24px;height:24px;border:3px solid #e8eaed;border-top-color:#1a73e8;border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 8px}
+    @keyframes sp{to{transform:rotate(360deg)}}
+    .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:300;display:none;max-width:85%;text-align:center}
+    .toast.show{display:block;animation:fu .3s}
+    @keyframes fu{from{opacity:0;transform:translateX(-50%) translateY(10px)}}
+    .hint{font-size:11px;color:#999;text-align:center;margin-top:6px}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span>📦 까대기 스캔</span>
+    <div class="rec-status" id="recSt"><div class="rec-dot"></div><span id="recTm">00:00</span></div>
+  </div>
+  <div class="container">
+    <div class="card">
+      <h3>① 운송장 바코드 스캔</h3>
+      <div id="reader"></div>
+      <input type="text" class="scan-input" id="scanInput" placeholder="또는 운송장번호 직접 입력" autocomplete="off" inputmode="numeric">
+      <button class="btn btn-blue" id="btnSubmit" onclick="doSearch()">입력완료</button>
+      <div class="hint">카메라로 바코드 스캔 또는 직접 입력</div>
+    </div>
+
+    <!-- 운송장 정보 -->
+    <div id="trackingInfo" class="card info-box" style="display:none">
+      <div class="info-row"><span class="info-label">운송장번호</span><span class="info-value" id="iNum">-</span></div>
+      <div class="info-row"><span class="info-label">택배사</span><span class="info-value" id="iCarrier">-</span></div>
+      <div class="info-row"><span class="info-label">보낸사람(공급처)</span><span class="info-value" id="iSender">-</span></div>
+      <div class="info-row"><span class="info-label">발송일</span><span class="info-value" id="iDate">-</span></div>
+    </div>
+
+    <!-- 시트 검색 결과 -->
+    <div class="result" id="resultSection">
+      <div id="resultContent"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+
+  <script>
+    // ── 설정 ──
+    var GAS_URL = 'https://script.google.com/macros/s/AKfycbxkNDf2iq0pgaQsgmZcuhShUP07XnNdS53CMfwN5712z853qz39DafFb5_ItbhGROum/exec';
+    var SWEET_TRACKER_KEY = '';  // SweetTracker API 키 (없으면 패턴 매칭)
+    var SPREADSHEET_ID = '1nHJF8yzm5TaLOu7Od-OFfd5hglW7bDfdfDZLbhREwU0';
+
+    var recStart = null, recInt = null;
+
+    // ── 바코드 스캐너 초기화 ──
+    var scanner = new Html5QrcodeScanner("reader", {
+      fps: 10,
+      qrbox: { width: 280, height: 100 },
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.ITF,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.CODABAR,
+      ],
+      rememberLastUsedCamera: true,
+      showTorchButtonIfSupported: true,
+    });
+    scanner.render(function(text) {
+      var num = text.replace(/\D/g, '');
+      if (num.length >= 8) {
+        document.getElementById('scanInput').value = num;
+        scanner.pause(true);
+        processTracking(num);
+      }
+    }, function() {});
+
+    // ── 입력완료 버튼 / Enter ──
+    function doSearch() {
+      var num = document.getElementById('scanInput').value.trim().replace(/\D/g, '');
+      if (num.length >= 8) processTracking(num);
+      else toast('운송장번호를 확인하세요 (8자리 이상)');
+    }
+    document.getElementById('scanInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); doSearch(); }
+    });
+
+    // ── 운송장 처리 ──
+    function processTracking(num) {
+      document.getElementById('iNum').textContent = num;
+      document.getElementById('trackingInfo').style.display = 'block';
+
+      // 1단계: 택배사 식별 + 배송 정보 조회
+      identifyAndFetch(num);
+
+      // 2단계: 시트에서 매칭 검색 (GAS)
+      searchSheet(num);
+    }
+
+    // ── 택배사 식별 + 배송 정보 ──
+    function identifyAndFetch(num) {
+      document.getElementById('iCarrier').textContent = '조회 중...';
+      document.getElementById('iSender').textContent = '조회 중...';
+      document.getElementById('iDate').textContent = '조회 중...';
+
+      if (SWEET_TRACKER_KEY) {
+        // SweetTracker API — 택배사 자동 식별
+        fetch('https://info.sweettracker.co.kr/api/v1/recommend?t_key=' + SWEET_TRACKER_KEY + '&t_invoice=' + num)
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data.Recommend && data.Recommend.length > 0) {
+              var rec = data.Recommend[0];
+              document.getElementById('iCarrier').textContent = rec.Name;
+              // 배송 상세 조회
+              fetchTrackingDetail(rec.Code, num);
+            } else {
+              fallbackCarrier(num);
+            }
+          })
+          .catch(function() { fallbackCarrier(num); });
+      } else {
+        fallbackCarrier(num);
+      }
+    }
+
+    function fetchTrackingDetail(carrierCode, num) {
+      if (!SWEET_TRACKER_KEY) return;
+      fetch('https://info.sweettracker.co.kr/api/v1/trackingInfo?t_key=' + SWEET_TRACKER_KEY + '&t_code=' + carrierCode + '&t_invoice=' + num)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.senderName) document.getElementById('iSender').textContent = data.senderName;
+          else document.getElementById('iSender').textContent = '-';
+          if (data.trackingDetails && data.trackingDetails.length > 0) {
+            document.getElementById('iDate').textContent = data.trackingDetails[0].timeString || '-';
+          }
+        })
+        .catch(function() {});
+    }
+
+    // ── 택배사 패턴 매칭 (API 없을 때 폴백) ──
+    function fallbackCarrier(num) {
+      var n = num.replace(/\D/g, ''), len = n.length;
+      var carrier = '택배사 미확인';
+      // 대략적 패턴 (정확도 낮음)
+      if (len === 12 && /^[23]/.test(n)) carrier = '롯데택배';
+      else if (len >= 10 && len <= 12 && /^[5689]/.test(n)) carrier = 'CJ대한통운';
+      else if (len === 10 && /^[456]/.test(n)) carrier = '한진택배';
+      else if (len === 11) carrier = '로젠택배';
+      else if (len === 13 && /^6/.test(n)) carrier = '우체국택배';
+      else if (len === 12) carrier = 'CJ대한통운 (추정)';
+      document.getElementById('iCarrier').textContent = carrier;
+      document.getElementById('iSender').textContent = '시트 조회로 확인';
+      document.getElementById('iDate').textContent = '-';
+    }
+
+    // ── 시트 검색 (GAS 호출 — CORS 우회 JSONP 방식) ──
+    function searchSheet(num) {
+      var section = document.getElementById('resultSection');
+      section.classList.add('show');
+      document.getElementById('resultContent').innerHTML = '<div class="loading"><div class="spinner"></div>시트 검색 중...</div>';
+
+      // GAS doGet에 검색 파라미터 전달
+      var url = GAS_URL + '?action=searchTracking&num=' + encodeURIComponent(num);
+      fetch(url)
+        .then(function(r) { return r.text(); })
+        .then(function(text) {
+          try {
+            var result = JSON.parse(text);
+            renderResult(result, num);
+          } catch(e) {
+            document.getElementById('resultContent').innerHTML =
+              '<div class="match-card warn">검색 결과 파싱 오류. GAS 웹앱에서 직접 시도하세요.</div>';
+          }
+        })
+        .catch(function(e) {
+          document.getElementById('resultContent').innerHTML =
+            '<div class="match-card warn">네트워크 오류: ' + e.message + '</div>';
+        });
+    }
+
+    // ── 결과 렌더링 ──
+    function renderResult(result, trackingNum) {
+      var html = '';
+      if (result.status === 'matched') {
+        html += '<div class="match-card ok"><b>✅ ' + result.items.length + '건 매칭</b></div>';
+        result.items.forEach(function(item) {
+          html += '<div class="match-card">';
+          html += '<div class="item-name">' + esc(item.brand) + ' ' + esc(item.product) + ' ' + esc(item.color) + '</div>';
+          html += '<div class="item-meta">SKU: ' + esc(item.sku) + ' | 사이즈: ' + esc(item.size) + '</div>';
+          html += '<div class="item-meta">공급처: ' + esc(item.supplier) + '</div>';
+          html += '<div class="item-qty">주문 ' + item.orderQty + '개';
+          if (item.receivedQty !== null) html += ' → 입고 ' + item.receivedQty + '개';
+          html += '</div></div>';
+          // 공급처 정보로 업데이트
+          if (item.supplier && document.getElementById('iSender').textContent === '시트 조회로 확인') {
+            document.getElementById('iSender').textContent = item.supplier;
+          }
+        });
+        html += '<div class="guide">📹 촬영이 자동 시작됩니다. 박스를 개봉하고 수량을 확인하세요.</div>';
+        html += '<a class="sheet-link" href="https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID +
+                '/edit#gid=994113401&range=A' + result.items[0].row + '" target="_blank">📋 구글 시트에서 입고 처리 (행 ' + result.items[0].row + ')</a>';
+        startRecTimer();
+        // 촬영 시작 명령
+        sendCommand('start', { trackingNum: trackingNum, supplier: result.items[0].supplier, product: result.items[0].brand + ' ' + result.items[0].product });
+
+      } else if (result.status === 'unmatched') {
+        html += '<div class="match-card warn"><b>⚠️ 미등록 운송장</b> — n차 배송 가능성</div>';
+        if (result.candidates && result.candidates.length > 0) {
+          result.candidates.forEach(function(c) {
+            html += '<div class="match-card">';
+            html += '<div class="item-name">' + esc(c.brand) + ' ' + esc(c.product) + ' ' + esc(c.color) + ' ' + esc(c.size) + '</div>';
+            html += '<div class="item-meta">공급처: ' + esc(c.supplier) + '</div>';
+            html += '<div class="item-qty">' + (c.priority==='high' ? '🔴 부분입고 ' + c.receivedQty + '/' + c.orderQty : '미입고 ' + c.orderQty + '개') + '</div>';
+            html += '<button class="btn-select" onclick="mapAndStart(\'' + esc(trackingNum) + '\',' + c.row + ',\'' + esc(c.supplier) + '\')">이 주문에 매핑</button>';
+            html += '</div>';
+          });
+        } else {
+          html += '<div class="match-card">매칭 가능한 미입고 건이 없습니다</div>';
+        }
+      }
+      document.getElementById('resultContent').innerHTML = html;
+    }
+
+    // ── 미매칭 운송장 매핑 ──
+    function mapAndStart(num, row, supplier) {
+      fetch(GAS_URL + '?action=mapTracking&num=' + encodeURIComponent(num) + '&row=' + row)
+        .then(function(r) { return r.text(); })
+        .then(function() {
+          toast('✅ 매핑 완료 — 촬영 시작');
+          startRecTimer();
+          sendCommand('start', { trackingNum: num, supplier: supplier });
+          document.getElementById('resultContent').innerHTML =
+            '<div class="guide">📹 촬영 시작됨. 박스를 개봉하세요.</div>' +
+            '<a class="sheet-link" href="https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID +
+            '/edit#gid=994113401&range=A' + row + '" target="_blank">📋 구글 시트에서 입고 처리</a>';
+        });
+    }
+
+    // ── 촬영 명령 전송 ──
+    function sendCommand(action, order) {
+      var cmd = JSON.stringify(Object.assign({ action: action, timestamp: new Date().toISOString() }, order || {}));
+      fetch(GAS_URL + '?action=setCommand&cmd=' + encodeURIComponent(cmd)).catch(function(){});
+    }
+
+    // ── 녹화 타이머 ──
+    function startRecTimer() {
+      recStart = Date.now();
+      document.getElementById('recSt').classList.add('on');
+      recInt = setInterval(function() {
+        var s = Math.floor((Date.now()-recStart)/1000);
+        document.getElementById('recTm').textContent = String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+      }, 1000);
+    }
+
+    // ── 유틸 ──
+    function esc(s) { var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+    function toast(m) { var t=document.getElementById('toast'); t.textContent=m; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},3000); }
+  </script>
+</body>
+</html>
