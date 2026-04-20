@@ -48,10 +48,25 @@
   <div class="header">📦 까대기 스캔</div>
   <div class="container">
 
+    <!-- 모드 선택 -->
+    <div class="card">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-blue" id="btnModeA" onclick="setMode('batch')" style="flex:1;padding:10px;font-size:14px">A. 합배송</button>
+        <button class="btn" id="btnModeB" onclick="setMode('single')" style="flex:1;padding:10px;font-size:14px;background:#888">B. 일괄</button>
+      </div>
+    </div>
+
     <!-- 스캔 카운터 -->
     <div class="scan-count">
       <div class="num" id="scanCount">0</div>
       <div class="txt">오늘 스캔</div>
+    </div>
+
+    <!-- 배치 스캔 목록 (A모드 전용) -->
+    <div class="card" id="batchCard" style="display:none">
+      <h3>📦 합배송 스캔 목록 (<span id="batchNum">0</span>건)</h3>
+      <div id="batchList" style="margin-bottom:10px"></div>
+      <button class="btn btn-green" onclick="sendBatch()" id="batchSendBtn" disabled>스캔 완료 → 일괄 전송</button>
     </div>
 
     <!-- 바코드 스캔 -->
@@ -81,6 +96,21 @@
     var GAS_URL = 'https://script.google.com/macros/s/AKfycbxkNDf2iq0pgaQsgmZcuhShUP07XnNdS53CMfwN5712z853qz39DafFb5_ItbhGROum/exec';
     var scanHistory = [];
     var scannerPaused = false;
+    var scanMode = localStorage.getItem('scanMode') || 'single'; // 'batch' or 'single'
+    var batchScans = []; // A모드 배치 목록
+
+    // ── 모드 전환 ──
+    function setMode(mode) {
+      scanMode = mode;
+      localStorage.setItem('scanMode', mode);
+      document.getElementById('btnModeA').className = mode === 'batch' ? 'btn btn-blue' : 'btn';
+      document.getElementById('btnModeB').className = mode === 'single' ? 'btn btn-blue' : 'btn';
+      document.getElementById('btnModeA').style.background = mode === 'batch' ? '' : '#888';
+      document.getElementById('btnModeB').style.background = mode === 'single' ? '' : '#888';
+      document.getElementById('batchCard').style.display = mode === 'batch' ? 'block' : 'none';
+      if (mode === 'single') { batchScans = []; renderBatchList(); }
+    }
+    setMode(scanMode); // 초기화
 
     // ── 바코드 스캐너 ──
     var html5Qr = new Html5Qrcode("reader", {
@@ -111,7 +141,7 @@
             html5Qr.pause(true);
             document.getElementById('scanInput').value = num;
             scanFeedback();
-            sendToSheet(num);
+            handleScan(num);
           }
         },
         function(){}
@@ -125,14 +155,96 @@
     // ── 입력완료 ──
     function doScan() {
       var num = document.getElementById('scanInput').value.trim().replace(/\D/g,'');
-      if (num.length >= 8) { scanFeedback(); sendToSheet(num); }
+      if (num.length >= 8) { scanFeedback(); handleScan(num); }
       else toast('운송장번호를 확인하세요');
     }
     document.getElementById('scanInput').addEventListener('keydown', function(e) {
       if (e.key==='Enter') { e.preventDefault(); doScan(); }
     });
 
-    // ── GAS에 운송장 전송 ──
+    // ── 모드별 스캔 핸들러 ──
+    function handleScan(num) {
+      if (scanMode === 'batch') {
+        // A모드: 배치에 추가
+        if (batchScans.indexOf(num) >= 0) {
+          toast('이미 스캔한 운송장입니다');
+          nextScan();
+          return;
+        }
+        batchScans.push(num);
+        renderBatchList();
+        addHistory(num, '📦 배치 추가');
+        toast('배치에 추가됨 (' + batchScans.length + '건)');
+        // 즉시 스캐너 재개 (연속 스캔)
+        setTimeout(nextScan, 800);
+      } else {
+        // B모드: 즉시 전송
+        sendToSheet(num);
+      }
+    }
+
+    // ── 배치 목록 렌더링 ──
+    function renderBatchList() {
+      var el = document.getElementById('batchList');
+      var numEl = document.getElementById('batchNum');
+      var btn = document.getElementById('batchSendBtn');
+      numEl.textContent = batchScans.length;
+      btn.disabled = batchScans.length === 0;
+      if (batchScans.length === 0) {
+        el.innerHTML = '<div style="text-align:center;color:#ccc;padding:8px;font-size:13px">운송장을 스캔하세요</div>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < batchScans.length; i++) {
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0">' +
+          '<span style="font-weight:600;font-size:14px">' + (i+1) + '. ' + batchScans[i] + '</span>' +
+          '<button onclick="removeBatch(' + i + ')" style="background:none;border:none;color:#e37400;font-size:18px;cursor:pointer">✕</button></div>';
+      }
+      el.innerHTML = html;
+    }
+
+    function removeBatch(idx) {
+      batchScans.splice(idx, 1);
+      renderBatchList();
+    }
+
+    // ── 배치 일괄 전송 (A모드) ──
+    function sendBatch() {
+      if (batchScans.length === 0) return;
+      var area = document.getElementById('resultArea');
+      area.className = 'result show';
+      area.innerHTML = '<div class="loading"><div class="spinner"></div>' + batchScans.length + '건 일괄 전송 중...</div>';
+
+      var worker = localStorage.getItem('worker') || '작업자';
+      var nums = batchScans.join(',');
+
+      fetch(GAS_URL + '?action=batchScan&nums=' + encodeURIComponent(nums) + '&worker=' + encodeURIComponent(worker))
+        .then(function(r) { return r.text(); })
+        .then(function(text) {
+          var result;
+          try { result = JSON.parse(text); } catch(e) { result = { error: text }; }
+
+          if (result.error) {
+            area.innerHTML = '<div class="result-card warn"><b>⚠️ 오류</b><p>' + result.error + '</p></div>';
+            return;
+          }
+
+          var matched = result.matched || 0;
+          var unmatched = result.unmatched || 0;
+          area.innerHTML =
+            '<div class="result-card ok"><b>📦 합배송 ' + batchScans.length + '건 처리 완료</b>' +
+            '<p>매칭: ' + matched + '건 / 미매칭: ' + unmatched + '건</p></div>' +
+            '<div class="result-card info"><p>📋 <b>컴퓨터 구글 시트</b>에서 그룹별 수량 입력</p></div>';
+          addHistory(batchScans.length + '건 배치', '✅ 매칭 ' + matched + '건');
+          batchScans = [];
+          renderBatchList();
+        })
+        .catch(function(e) {
+          area.innerHTML = '<div class="result-card warn"><b>네트워크 오류</b><p>' + e.message + '</p></div>';
+        });
+    }
+
+    // ── GAS에 운송장 전송 (B모드: 단건) ──
     function sendToSheet(num) {
       var area = document.getElementById('resultArea');
       area.className = 'result show';
@@ -159,7 +271,6 @@
               '<div class="result-card info"><p>📋 <b>컴퓨터 구글 시트</b>에서 수량 입력 후 Z열 체크<br>📹 촬영 자동 시작됨</p></div>' +
               '<button class="btn btn-green" onclick="nextScan()">📦 다음 운송장 스캔</button>';
             addHistory(num, '✅ 매칭 ' + result.items.length + '건');
-            // 3초 후 자동 스캐너 재개
             setTimeout(nextScan, 3000);
           } else if (result.status === 'unmatched') {
             area.innerHTML =
@@ -191,7 +302,6 @@
       try {
         html5Qr.resume();
       } catch(e) {
-        // resume 실패 시 스캐너 완전 재시작
         try { html5Qr.stop(); } catch(ex) {}
         setTimeout(startScanner, 500);
       }
@@ -220,7 +330,6 @@
     function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
     function toast(m){var t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},3000)}
 
-    // 스캔 성공 피드백 (진동 + 비프음)
     function scanFeedback() {
       try { navigator.vibrate([100, 50, 100]); } catch(e) {}
       try {
