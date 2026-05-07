@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🟠 까대기 스캔 [STAGE]</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fffbeb;color:#333;min-height:100vh}
+    .header{background:#e37400;color:#fff;padding:14px 20px;font-size:18px;font-weight:600;position:sticky;top:0;z-index:100;display:flex;justify-content:space-between;align-items:center}
+    .header .badge{background:#fff;color:#e37400;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;letter-spacing:.5px}
+    .stage-banner{background:#fff8e1;color:#e37400;padding:6px 12px;font-size:11px;text-align:center;border-bottom:1px solid #ffd54f}
+    .container{padding:12px;max-width:500px;margin:0 auto}
+    .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+    .card h3{font-size:15px;margin-bottom:10px;color:#e37400}
+    #cam-wrap{position:relative;border-radius:10px;overflow:hidden;margin-bottom:10px;background:#111;aspect-ratio:4/3}
+    #cam-video{width:100%;height:100%;object-fit:cover;display:block}
+    .roi-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:35%;border:2px solid #34c759;border-radius:8px;pointer-events:none;box-shadow:0 0 0 9999px rgba(0,0,0,.25)}
+    .cam-status{position:absolute;bottom:8px;left:8px;right:8px;text-align:center;color:#fff;font-size:11px;background:rgba(0,0,0,.5);padding:4px 8px;border-radius:6px}
+    .cam-ind{position:absolute;top:8px;right:8px;width:10px;height:10px;border-radius:50%;background:#ffd60a;box-shadow:0 0 4px rgba(0,0,0,.4)}
+    .cam-actions{position:absolute;top:8px;left:8px;display:flex;gap:6px}
+    .cam-actions button{background:rgba(0,0,0,.6);border:none;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer}
+    .scan-input{width:100%;padding:14px;font-size:18px;font-weight:600;border:3px solid #e37400;border-radius:10px;outline:none;text-align:center;background:#fffbeb}
+    .scan-input:focus{border-color:#a8550a;background:#fff}
+    .btn{width:100%;padding:14px;margin-top:8px;font-size:17px;font-weight:700;color:#fff;border:none;border-radius:10px;cursor:pointer}
+    .btn:active{transform:scale(.98)}
+    .btn-orange{background:#e37400}
+    .btn-green{background:#0d904f}
+    .btn:disabled{background:#ccc}
+    .result{display:none;margin-top:12px}.result.show{display:block}
+    .result-card{border-radius:12px;padding:14px;margin-bottom:8px;border:2px solid}
+    .result-card.ok{border-color:#0d904f;background:#f0fdf4}
+    .result-card.warn{border-color:#e37400;background:#fffbeb}
+    .result-card.info{border-color:#1a73e8;background:#e8f0fe}
+    .result-card b{font-size:15px}
+    .result-card p{font-size:13px;color:#555;margin-top:6px;line-height:1.5}
+    .hint{font-size:11px;color:#999;text-align:center;margin-top:6px}
+    .scan-count{background:#fff;border-radius:10px;padding:10px;text-align:center;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);display:flex;justify-content:space-around;align-items:center}
+    .scan-count .col{flex:1}
+    .scan-count .num{font-size:28px;font-weight:700;color:#e37400}
+    .scan-count .num.queue{color:#1a73e8}
+    .scan-count .num.warn{color:#d93025}
+    .scan-count .txt{font-size:11px;color:#888}
+    .loading{text-align:center;padding:15px;color:#888}
+    .spinner{width:24px;height:24px;border:3px solid #e8eaed;border-top-color:#e37400;border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 8px}
+    @keyframes sp{to{transform:rotate(360deg)}}
+    .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:300;display:none;max-width:85%;text-align:center}
+    .toast.show{display:block;animation:fu .3s}
+    @keyframes fu{from{opacity:0;transform:translateX(-50%) translateY(10px)}}
+    .history{margin-top:4px}
+    .history-item{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+    .history-item .num{font-weight:600;color:#333}
+    .history-item .status{font-size:12px}
+    .status-ok{color:#0d904f}.status-warn{color:#e37400}.status-queued{color:#1a73e8}
+    .net-pill{position:fixed;top:50px;right:8px;font-size:10px;padding:3px 8px;border-radius:10px;background:#0d904f;color:#fff;z-index:200}
+    .net-pill.off{background:#d93025}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span>🟠 까대기 스캔</span>
+    <span class="badge">STAGE</span>
+  </div>
+  <div class="stage-banner">
+    ⚠ 사본 시트 테스트 환경 — 실제 매입장부 시트는 영향 없음
+  </div>
+  <div class="net-pill" id="netPill">● 온라인</div>
+
+  <div class="container">
+
+    <!-- 모드 선택 -->
+    <div class="card">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-orange" id="btnModeA" onclick="setMode('batch')" style="flex:1;padding:10px;font-size:14px">A. 합배송</button>
+        <button class="btn" id="btnModeB" onclick="setMode('single')" style="flex:1;padding:10px;font-size:14px;background:#888">B. 일괄</button>
+      </div>
+    </div>
+
+    <!-- 카운터 (오늘 / 큐 / 미매칭) -->
+    <div class="scan-count">
+      <div class="col"><div class="num" id="scanCount">0</div><div class="txt">오늘 스캔</div></div>
+      <div class="col"><div class="num queue" id="queueCount">0</div><div class="txt">전송대기</div></div>
+      <div class="col"><div class="num warn" id="unmatchedCount">0</div><div class="txt">미매칭</div></div>
+    </div>
+
+    <!-- 배치 스캔 목록 (A모드 전용) -->
+    <div class="card" id="batchCard" style="display:none">
+      <h3>📦 합배송 스캔 목록 (<span id="batchNum">0</span>건)</h3>
+      <div id="batchList" style="margin-bottom:10px"></div>
+      <button class="btn btn-green" onclick="sendBatch()" id="batchSendBtn" disabled>스캔 완료 → 일괄 전송</button>
+    </div>
+
+    <!-- 바코드 스캔 -->
+    <div class="card">
+      <h3>운송장 바코드 스캔</h3>
+      <div id="cam-wrap">
+        <video id="cam-video" autoplay muted playsinline></video>
+        <div class="roi-overlay" id="roiOverlay"></div>
+        <div class="cam-ind" id="camInd"></div>
+        <div class="cam-actions">
+          <button id="torchBtn" style="display:none" onclick="toggleTorch()">🔦</button>
+        </div>
+        <div class="cam-status" id="camStatus">스캐너 준비 중…</div>
+      </div>
+      <input type="text" class="scan-input" id="scanInput" placeholder="직접 입력" autocomplete="off" inputmode="numeric">
+      <button class="btn btn-orange" onclick="doScan()">입력완료</button>
+      <div class="hint">바코드 스캔 또는 직접 입력 → 구글 시트에서 작업</div>
+    </div>
+
+    <!-- 결과 -->
+    <div class="result" id="resultArea"></div>
+
+    <!-- 스캔 이력 -->
+    <div class="card">
+      <h3>스캔 이력</h3>
+      <div class="history" id="history">
+        <div style="text-align:center;color:#ccc;padding:10px">스캔 이력이 없습니다</div>
+      </div>
+    </div>
+
+  </div>
+  <div id="toast" class="toast"></div>
+
+  <script>
+    // ╔══════════════════════════════════════════════════════╗
+    // ║ STAGE — 사본 GAS deployment URL                       ║
+    // ║ prod 승격 시 prod GAS URL 로 교체                      ║
+    // ╚══════════════════════════════════════════════════════╝
+    var GAS_URL = 'https://script.google.com/macros/s/AKfycbxMSC2R-vTTuMZyV6y6TIsz_6Ezo7p02S6Pm98VAb2pViojRlYZrn_JeeUs2s_ev8bK_g/exec';
+
+    // ── 상태 ──
+    var scanHistory = JSON.parse(localStorage.getItem('scanHistory_stage') || '[]').slice(0, 30);
+    var scannerPaused = false;
+    var scanMode = localStorage.getItem('scanMode_stage') || 'single';
+    var batchScans = [];
+    var pendingQueue = JSON.parse(localStorage.getItem('pendingQueue_stage') || '[]');
+
+    // 오늘 카운터 (자정 리셋)
+    var counterState = JSON.parse(localStorage.getItem('counterState_stage') || '{}');
+    var today = new Date().toISOString().slice(0, 10);
+    if (counterState.date !== today) counterState = { date: today, total: 0, unmatched: 0 };
+
+    function persistCounter() { localStorage.setItem('counterState_stage', JSON.stringify(counterState)); }
+    function persistHistory() { localStorage.setItem('scanHistory_stage', JSON.stringify(scanHistory.slice(0, 30))); }
+    function persistQueue() { localStorage.setItem('pendingQueue_stage', JSON.stringify(pendingQueue)); }
+
+    function refreshCounters() {
+      document.getElementById('scanCount').textContent = counterState.total;
+      document.getElementById('queueCount').textContent = pendingQueue.length;
+      document.getElementById('unmatchedCount').textContent = counterState.unmatched;
+    }
+    refreshCounters();
+    renderHistory();
+
+    // ── 모드 전환 ──
+    function setMode(mode) {
+      scanMode = mode;
+      localStorage.setItem('scanMode_stage', mode);
+      document.getElementById('btnModeA').className = mode === 'batch' ? 'btn btn-orange' : 'btn';
+      document.getElementById('btnModeB').className = mode === 'single' ? 'btn btn-orange' : 'btn';
+      document.getElementById('btnModeA').style.background = mode === 'batch' ? '' : '#888';
+      document.getElementById('btnModeB').style.background = mode === 'single' ? '' : '#888';
+      document.getElementById('batchCard').style.display = mode === 'batch' ? 'block' : 'none';
+      if (mode === 'single') { batchScans = []; renderBatchList(); }
+    }
+    setMode(scanMode);
+
+    // ─────────────────────────────────────────────────────────
+    //  스캐너 엔진 — inbound-claim 의 BarcodeDetector + zxing-wasm 폴리필
+    //  (html5-qrcode 대비 5–10배 빠름)
+    // ─────────────────────────────────────────────────────────
+
+    var cameraStream = null;
+    var detector = null;
+    var scanLoopActive = false;
+    var scanTimerId = null;
+    var SCAN_INTERVAL_MS = 100; // 10Hz throttle (발열 저감)
+    var IDLE_STOP_MS = 90 * 1000; // 90초 무동작 시 자동 정지
+    var idleTimer = null;
+    var _polyfillTried = false;
+
+    function isIOS() {
+      return /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+             (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+    }
+
+    async function ensureBarcodeDetectorPolyfill() {
+      if ('BarcodeDetector' in window) return true;
+      if (_polyfillTried) return 'BarcodeDetector' in window;
+      _polyfillTried = true;
+      try {
+        var mod = await import('https://cdn.jsdelivr.net/npm/barcode-detector@2/dist/es/pure.min.js');
+        if (mod && mod.BarcodeDetector) {
+          window.BarcodeDetector = mod.BarcodeDetector;
+          console.log('[stage] BarcodeDetector polyfill loaded (zxing-wasm)');
+          return true;
+        }
+      } catch (e) {
+        console.warn('[stage] polyfill load failed:', e);
+      }
+      return false;
+    }
+
+    // 백그라운드 사전 로딩
+    (window.requestIdleCallback || function(cb){ setTimeout(cb, 1500); })(function() {
+      ensureBarcodeDetectorPolyfill().catch(function(){});
+    });
+
+    function resetIdleTimer() {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(function() {
+        console.log('[stage] idle 90s — stopping camera');
+        stopCamera();
+        document.getElementById('camStatus').textContent = '⏸ 90초 무동작 — 화면 터치하면 재시작';
+        document.getElementById('cam-wrap').addEventListener('click', restartCameraOnce, { once: true });
+      }, IDLE_STOP_MS);
+    }
+
+    function restartCameraOnce() {
+      startCamera();
+    }
+
+    async function startCamera() {
+      stopCamera();
+      resetIdleTimer();
+
+      var video = document.getElementById('cam-video');
+      var status = document.getElementById('camStatus');
+      var ind = document.getElementById('camInd');
+      ind.style.background = '#ffd60a';
+
+      // 컨센서스 상태
+      var candidate = '';
+      var candidateCount = 0;
+      var lastFired = '';
+      var lastTime = 0;
+      var CONSENSUS = 3;
+
+      function fire(rawValue) {
+        if (scannerPaused) return; // 결과 표시 중엔 디코딩 무시
+        if (!rawValue) return;
+        var num = String(rawValue).replace(/\D/g, '');
+        if (num.length < 8) return; // 운송장 최소 자릿수
+
+        if (num === candidate) candidateCount += 1;
+        else { candidate = num; candidateCount = 1; }
+        if (candidateCount < CONSENSUS) return;
+
+        if (num === lastFired && Date.now() - lastTime < 1500) return;
+        lastFired = num;
+        lastTime = Date.now();
+        candidate = '';
+        candidateCount = 0;
+        resetIdleTimer();
+
+        scannerPaused = true; // 루프는 계속 돌지만 다음 fire 까지 무시
+        document.getElementById('scanInput').value = num;
+        scanFeedback();
+        handleScan(num);
+      }
+
+      await ensureBarcodeDetectorPolyfill();
+
+      try {
+        var ios = isIOS();
+        // iOS: 1080p, ROI off — wasm 폴리필이 작은 ROI 에서 인식률 저하 (실측 2026-05-04)
+        // Android: 1440p + zoom 2x + ROI 70% — Galaxy MLKit 풀스펙
+        var videoConstraints = ios ? {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 },
+          frameRate: { ideal: 30, min: 24 },
+        } : {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 2560, min: 1280 },
+          height: { ideal: 1440, min: 720 },
+          frameRate: { ideal: 60, min: 30 },
+        };
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
+
+        try {
+          var track = cameraStream.getVideoTracks()[0];
+          var caps = track.getCapabilities ? track.getCapabilities() : {};
+          var advanced = {};
+          if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) advanced.focusMode = 'continuous';
+          if (!ios && caps.zoom && caps.zoom.max >= 2) advanced.zoom = Math.min(2.0, caps.zoom.max);
+          if (Object.keys(advanced).length) {
+            try { await track.applyConstraints({ advanced: [advanced] }); } catch (_) {}
+          }
+          if (caps.torch) {
+            document.getElementById('torchBtn').style.display = 'block';
+            window.__torchTrack = track;
+          }
+        } catch (_) {}
+
+        video.srcObject = cameraStream;
+        await video.play();
+
+        if (!('BarcodeDetector' in window)) {
+          status.textContent = '⚠ 디코더 로드 실패 — 직접 입력만 가능';
+          ind.style.background = '#d93025';
+          return;
+        }
+
+        // 운송장 포맷 — CODE_128 / CODE_39 / ITF / EAN_13 / CODABAR
+        var formats = ['code_128', 'code_39', 'itf', 'ean_13', 'codabar'];
+        try { detector = new window.BarcodeDetector({ formats: formats }); }
+        catch (e) { detector = null; }
+
+        if (!detector) {
+          status.textContent = '⚠ 디코더 생성 실패';
+          ind.style.background = '#d93025';
+          return;
+        }
+
+        status.textContent = ios
+          ? '스캔 중… (🍎 wasm · 풀프레임)'
+          : '스캔 중… (📱 MLKit · ROI 70% · zoom 2x)';
+        ind.style.background = '#34c759';
+
+        // ROI: Android 70% center crop, iOS 풀프레임
+        var roiCanvas = ios ? null : document.createElement('canvas');
+        var roiCtx = roiCanvas ? roiCanvas.getContext('2d', { willReadFrequently: true }) : null;
+        var ROI_FRAC = 0.7;
+
+        scanLoopActive = true;
+        var diagLogged = false;
+
+        async function tick() {
+          if (!cameraStream || !scanLoopActive) return;
+          if (video.readyState >= 2 && video.videoWidth > 0) {
+            try {
+              if (!diagLogged) {
+                diagLogged = true;
+                console.log('[stage] scanner started', {
+                  ios: ios, w: video.videoWidth, h: video.videoHeight,
+                  formats: formats, intervalMs: SCAN_INTERVAL_MS,
+                });
+              }
+              var target;
+              if (ios) {
+                target = video;
+              } else {
+                var vw = video.videoWidth, vh = video.videoHeight;
+                var sw = Math.max(1, Math.round(vw * ROI_FRAC));
+                var sh = Math.max(1, Math.round(vh * ROI_FRAC));
+                var sx = Math.round((vw - sw) / 2);
+                var sy = Math.round((vh - sh) / 2);
+                if (roiCanvas.width !== sw || roiCanvas.height !== sh) {
+                  roiCanvas.width = sw;
+                  roiCanvas.height = sh;
+                }
+                roiCtx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+                target = roiCanvas;
+              }
+              var codes = await detector.detect(target);
+              if (codes && codes.length) {
+                fire(codes[0].rawValue);
+              }
+            } catch (e) {
+              if (!diagLogged) console.warn('[stage] detect error:', e && e.name + ':' + e.message);
+            }
+          }
+          scanTimerId = setTimeout(tick, SCAN_INTERVAL_MS);
+        }
+        scanTimerId = setTimeout(tick, SCAN_INTERVAL_MS);
+
+      } catch (e) {
+        var msg = (e && e.name) || (e && e.message) || String(e);
+        var isPerm = /NotAllowed|Permission|denied/i.test(msg);
+        var isNotFound = /NotFound|NoVideoSource/i.test(msg);
+        if (isPerm) status.textContent = '📵 카메라 권한 거부됨 — 브라우저 설정에서 허용';
+        else if (isNotFound) status.textContent = '⚠ 카메라 없음';
+        else status.textContent = '⚠ 카메라 시작 실패: ' + msg;
+        ind.style.background = '#d93025';
+      }
+    }
+
+    function stopCamera() {
+      scanLoopActive = false;
+      if (scanTimerId) { clearTimeout(scanTimerId); scanTimerId = null; }
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(function(t) { t.stop(); });
+        cameraStream = null;
+      }
+      detector = null;
+    }
+
+    function toggleTorch() {
+      var track = window.__torchTrack;
+      if (!track) return;
+      try {
+        var caps = track.getCapabilities();
+        var settings = track.getSettings();
+        var newVal = !settings.torch;
+        track.applyConstraints({ advanced: [{ torch: newVal }] });
+        document.getElementById('torchBtn').textContent = newVal ? '🔦' : '💡';
+      } catch (_) {}
+    }
+
+    startCamera();
+
+    // ── 입력완료 ──
+    function doScan() {
+      var num = document.getElementById('scanInput').value.trim().replace(/\D/g, '');
+      if (num.length >= 8) { scanFeedback(); handleScan(num); }
+      else toast('운송장번호를 확인하세요');
+    }
+    document.getElementById('scanInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); doScan(); }
+    });
+
+    // ── 모드별 스캔 핸들러 ──
+    function handleScan(num) {
+      if (scanMode === 'batch') {
+        if (batchScans.indexOf(num) >= 0) {
+          toast('이미 스캔한 운송장입니다');
+          nextScan();
+          return;
+        }
+        batchScans.push(num);
+        renderBatchList();
+        addHistory(num, '📦 배치 추가');
+        toast('배치에 추가됨 (' + batchScans.length + '건)');
+        setTimeout(nextScan, 500); // 3000 → 500
+      } else {
+        sendToSheet(num);
+      }
+    }
+
+    // ── 배치 목록 렌더링 ──
+    function renderBatchList() {
+      var el = document.getElementById('batchList');
+      var numEl = document.getElementById('batchNum');
+      var btn = document.getElementById('batchSendBtn');
+      numEl.textContent = batchScans.length;
+      btn.disabled = batchScans.length === 0;
+      if (batchScans.length === 0) {
+        el.innerHTML = '<div style="text-align:center;color:#ccc;padding:8px;font-size:13px">운송장을 스캔하세요</div>';
+        return;
+      }
+      var html = '';
+      for (var i = 0; i < batchScans.length; i++) {
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0">' +
+          '<span style="font-weight:600;font-size:14px">' + (i + 1) + '. ' + batchScans[i] + '</span>' +
+          '<button onclick="removeBatch(' + i + ')" style="background:none;border:none;color:#e37400;font-size:18px;cursor:pointer">✕</button></div>';
+      }
+      el.innerHTML = html;
+    }
+
+    function removeBatch(idx) {
+      batchScans.splice(idx, 1);
+      renderBatchList();
+    }
+
+    // ── 배치 일괄 전송 (A모드) ──
+    function sendBatch() {
+      if (batchScans.length === 0) return;
+      var area = document.getElementById('resultArea');
+      area.className = 'result show';
+      area.innerHTML = '<div class="loading"><div class="spinner"></div>' + batchScans.length + '건 일괄 전송 중...</div>';
+
+      var worker = localStorage.getItem('worker') || '작업자';
+      var nums = batchScans.join(',');
+
+      fetch(GAS_URL + '?action=batchScan&nums=' + encodeURIComponent(nums) + '&worker=' + encodeURIComponent(worker))
+        .then(function(r) { return r.text(); })
+        .then(function(text) {
+          var result;
+          try { result = JSON.parse(text); } catch (e) { result = { error: text }; }
+
+          if (result.error) {
+            area.innerHTML = '<div class="result-card warn"><b>⚠️ 오류</b><p>' + result.error + '</p></div>';
+            return;
+          }
+          var matched = result.matched || 0;
+          var unmatched = result.unmatched || 0;
+          area.innerHTML =
+            '<div class="result-card ok"><b>📦 합배송 ' + batchScans.length + '건 처리 완료</b>' +
+            '<p>매칭: ' + matched + '건 / 미매칭: ' + unmatched + '건</p></div>' +
+            '<div class="result-card info"><p>📋 <b>컴퓨터 구글 시트</b>에서 그룹별 수량 입력</p></div>';
+          addHistory(batchScans.length + '건 배치', '✅ 매칭 ' + matched + '건');
+          counterState.unmatched += unmatched;
+          persistCounter();
+          refreshCounters();
+          batchScans = [];
+          renderBatchList();
+        })
+        .catch(function(e) {
+          // 오프라인 큐잉
+          batchScans.forEach(function(n) {
+            pendingQueue.push({ type: 'single', num: n, ts: Date.now(), worker: worker });
+          });
+          persistQueue();
+          refreshCounters();
+          area.innerHTML = '<div class="result-card warn"><b>📡 네트워크 오류 — 큐잉됨</b><p>' + e.message + '<br>온라인 복구 시 자동 전송 (' + pendingQueue.length + '건 대기)</p></div>';
+          batchScans = [];
+          renderBatchList();
+        });
+    }
+
+    // ── GAS 단건 전송 (B모드) ──
+    function sendToSheet(num) {
+      var area = document.getElementById('resultArea');
+      area.className = 'result show';
+      area.innerHTML = '<div class="loading"><div class="spinner"></div>시트에 전송 중...</div>';
+
+      var worker = localStorage.getItem('worker') || '작업자';
+      var retryCount = 0;
+
+      function doFetch() {
+        fetch(GAS_URL + '?action=scan&num=' + encodeURIComponent(num) + '&worker=' + encodeURIComponent(worker))
+          .then(function(r) { return r.text(); })
+          .then(function(text) {
+            var result;
+            try { result = JSON.parse(text); } catch (e) { result = { error: text }; }
+
+            if (result.error) {
+              area.innerHTML = '<div class="result-card warn"><b>⚠️ 오류</b><p>' + result.error + '</p></div>';
+              return;
+            }
+            if (result.status === 'matched') {
+              area.innerHTML =
+                '<div class="result-card ok"><b>✅ ' + result.items.length + '건 매칭 완료</b></div>' +
+                '<div class="result-card info"><p>📋 <b>컴퓨터 구글 시트</b>에서 수량 입력 후 Z열 체크</p></div>';
+              addHistory(num, '✅ 매칭 ' + result.items.length + '건');
+              setTimeout(nextScan, 700); // 3000 → 700
+            } else if (result.status === 'unmatched') {
+              area.innerHTML =
+                '<div class="result-card warn"><b>⚠️ 미등록 운송장</b><p>📋 <b>컴퓨터 구글 시트</b>에서 후보 확인</p></div>';
+              addHistory(num, '⚠️ 미매칭');
+              counterState.unmatched += 1;
+              persistCounter();
+              refreshCounters();
+              setTimeout(nextScan, 1500); // 미매칭은 좀 더 길게 (사용자 인지 시간)
+            }
+          })
+          .catch(function(e) {
+            if (retryCount < 1) {
+              retryCount++;
+              area.innerHTML = '<div class="loading"><div class="spinner"></div>재시도 중 (' + retryCount + '/1)...</div>';
+              setTimeout(doFetch, 1500);
+            } else {
+              // 큐잉
+              pendingQueue.push({ type: 'single', num: num, ts: Date.now(), worker: worker });
+              persistQueue();
+              refreshCounters();
+              area.innerHTML = '<div class="result-card warn"><b>📡 네트워크 오류 — 큐잉됨</b><p>' + e.message + '<br>온라인 복구 시 자동 전송 (' + pendingQueue.length + '건 대기)</p></div>';
+              addHistory(num, '📡 큐잉');
+              setTimeout(nextScan, 700);
+            }
+          });
+      }
+      doFetch();
+    }
+
+    // ── 다음 스캔 ──
+    // 카메라 루프는 계속 살아있고, scannerPaused 플래그만 풀면 즉시 다음 인식 가능
+    function nextScan() {
+      document.getElementById('scanInput').value = '';
+      document.getElementById('resultArea').className = 'result';
+      scannerPaused = false;
+      resetIdleTimer();
+      // 카메라가 idle/visibilitychange 로 정지된 경우만 재시작
+      if (!cameraStream) startCamera();
+    }
+
+    // ── 스캔 이력 ──
+    function addHistory(num, status) {
+      counterState.total += 1;
+      persistCounter();
+      refreshCounters();
+
+      scanHistory.unshift({ num: num, status: status, time: new Date().toLocaleTimeString('ko-KR') });
+      scanHistory = scanHistory.slice(0, 30);
+      persistHistory();
+      renderHistory();
+    }
+
+    function renderHistory() {
+      var html = '';
+      scanHistory.slice(0, 10).forEach(function(h) {
+        var cls = 'status-warn';
+        if (h.status.indexOf('✅') >= 0) cls = 'status-ok';
+        else if (h.status.indexOf('📡') >= 0) cls = 'status-queued';
+        html += '<div class="history-item"><span class="num">' + h.num + '</span>' +
+                '<span class="' + cls + '">' + h.status + ' ' + h.time + '</span></div>';
+      });
+      document.getElementById('history').innerHTML = html || '<div style="text-align:center;color:#ccc;padding:10px">스캔 이력이 없습니다</div>';
+    }
+
+    // ── 큐 자동 flush ──
+    async function flushQueue() {
+      if (!navigator.onLine || pendingQueue.length === 0) return;
+      var worker = localStorage.getItem('worker') || '작업자';
+      var snapshot = pendingQueue.slice();
+      var sentIds = [];
+      for (var i = 0; i < snapshot.length; i++) {
+        var item = snapshot[i];
+        try {
+          var res = await fetch(GAS_URL + '?action=scan&num=' + encodeURIComponent(item.num) + '&worker=' + encodeURIComponent(item.worker || worker));
+          if (res.ok) sentIds.push(item.ts + '_' + item.num);
+        } catch (_) { break; } // 한 건이라도 실패하면 중단, 다음 사이클에 재시도
+      }
+      if (sentIds.length) {
+        pendingQueue = pendingQueue.filter(function(x) {
+          return sentIds.indexOf(x.ts + '_' + x.num) < 0;
+        });
+        persistQueue();
+        refreshCounters();
+        toast('큐 ' + sentIds.length + '건 전송됨');
+      }
+    }
+    setInterval(flushQueue, 15 * 1000); // 15초마다 큐 flush 시도
+    window.addEventListener('online', function() {
+      document.getElementById('netPill').textContent = '● 온라인';
+      document.getElementById('netPill').classList.remove('off');
+      flushQueue();
+    });
+    window.addEventListener('offline', function() {
+      document.getElementById('netPill').textContent = '● 오프라인';
+      document.getElementById('netPill').classList.add('off');
+    });
+    if (!navigator.onLine) {
+      document.getElementById('netPill').textContent = '● 오프라인';
+      document.getElementById('netPill').classList.add('off');
+    }
+
+    // ── 유틸 ──
+    function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+    function toast(m) {
+      var t = document.getElementById('toast');
+      t.textContent = m;
+      t.classList.add('show');
+      setTimeout(function() { t.classList.remove('show'); }, 3000);
+    }
+
+    function scanFeedback() {
+      try { navigator.vibrate([60, 30, 60]); } catch (e) {}
+      try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 1400; gain.gain.value = 0.25;
+        osc.start(); osc.stop(ctx.currentTime + 0.1);
+      } catch (e) {}
+    }
+
+    // 화면 가려지면 카메라 정지 (배터리 절약)
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) stopCamera();
+      else if (!cameraStream) startCamera();
+    });
+  </script>
+</body>
+</html>
