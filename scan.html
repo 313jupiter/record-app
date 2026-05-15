@@ -92,6 +92,26 @@
     .switch-slider:before{position:absolute;content:"";height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
     .switch input:checked + .switch-slider{background:#e37400}
     .switch input:checked + .switch-slider:before{transform:translateX(16px)}
+
+    /* 빠른 블록 입력 */
+    .quick-cat{margin-bottom:10px}
+    .quick-cat .cat-label{font-size:11px;font-weight:700;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+    .block-grid{display:flex;flex-wrap:wrap;gap:6px}
+    .block{padding:8px 12px;font-size:14px;font-weight:600;border:2px solid #e8eaed;background:#fff;color:#333;border-radius:8px;cursor:pointer;touch-action:manipulation}
+    .block:active{transform:scale(.95)}
+    .block.product{min-width:0;flex:1 1 calc(50% - 3px)}
+    .block.gender{flex:1 1 calc(33.33% - 4px)}
+    .block.size{flex:1 1 calc(25% - 5px);text-align:center;padding:10px 0}
+    .block.sel{background:#e37400;color:#fff;border-color:#e37400;box-shadow:0 2px 6px rgba(227,116,0,.3)}
+    .block.size.sel{background:#0d904f;border-color:#0d904f}
+    .block-empty{font-size:11px;color:#bbb;padding:8px;text-align:center;width:100%}
+    .picker-toggle{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#666;margin:10px 0 6px 0;cursor:pointer}
+    .picker-toggle .arrow{font-size:14px}
+    .picker-area{display:none}
+    .picker-area.show{display:block}
+    .cache-status{font-size:10px;color:#aaa;text-align:right;margin-top:4px}
+    .product-favs-bar{display:flex;align-items:center;gap:6px;font-size:11px;color:#888;margin-top:6px}
+    .product-favs-bar .add-fav{background:#fff8e1;border:1px dashed #e37400;color:#e37400;padding:4px 10px;border-radius:6px;cursor:pointer;font-weight:600}
   </style>
 </head>
 <body>
@@ -157,27 +177,53 @@
         <h3>📝 박스 내용 입력</h3>
         <div class="entry-tracking">운송장 <b id="entryTracking">—</b></div>
 
-        <div class="day-toggle">
-          <button id="day7Btn" onclick="setPickerDays(7)">최근 7일</button>
-          <button id="day30Btn" onclick="setPickerDays(30)">최근 30일</button>
-        </div>
-
-        <input type="text" class="item-search" id="itemSearch" placeholder="🔍 상품 검색 (런/품번/브랜드)" oninput="renderItemList()">
-        <div class="item-list" id="itemList">
-          <div class="item-loading">불러오는 중…</div>
-        </div>
-
-        <!-- 선택된 상품 + 사이즈/수량 -->
-        <div id="sizeSection" style="display:none;margin-top:10px">
-          <div style="font-size:13px;color:#666;margin-bottom:6px">사이즈 (탭) — 자유입력도 가능</div>
-          <div class="size-grid" id="sizeGrid"></div>
-          <input type="text" class="size-input" id="sizeFreeInput" placeholder="다른 사이즈 (직접 입력)" inputmode="numeric">
-          <div class="qty-ctrl">
-            <button onclick="adjQty(-1)">−</button>
-            <span class="qty-num" id="qtyDisplay">1</span>
-            <button onclick="adjQty(1)">+</button>
+        <!-- 빠른 블록 입력 -->
+        <div class="quick-cat">
+          <div class="cat-label">상품</div>
+          <div class="block-grid" id="quickProducts">
+            <div class="block-empty">로딩 중…</div>
           </div>
-          <button class="btn btn-orange" onclick="addEntry()" id="addEntryBtn" disabled>➕ 항목 추가</button>
+        </div>
+
+        <div class="quick-cat">
+          <div class="cat-label">성별</div>
+          <div class="block-grid" id="quickGenders">
+            <button class="block gender" onclick="quickPickGender('남')">남</button>
+            <button class="block gender" onclick="quickPickGender('여')">여</button>
+            <button class="block gender" onclick="quickPickGender('공용')">공용</button>
+          </div>
+        </div>
+
+        <div class="quick-cat">
+          <div class="cat-label">사이즈 (여러 개 탭 가능)</div>
+          <div class="block-grid" id="quickSizes">
+            <div class="block-empty">로딩 중…</div>
+          </div>
+        </div>
+
+        <div class="qty-ctrl">
+          <button onclick="adjQty(-1)">−</button>
+          <span class="qty-num" id="qtyDisplay">1</span>
+          <button onclick="adjQty(1)">+</button>
+        </div>
+        <button class="btn btn-orange" onclick="addEntry()" id="addEntryBtn" disabled>➕ 항목 추가</button>
+
+        <!-- 검색 픽커 (접힘 — "다른 상품 검색" 클릭 시 펼침) -->
+        <div class="picker-toggle" onclick="togglePicker()">
+          <span>🔍 다른 상품 검색 / 최근 7일·30일</span>
+          <span class="arrow" id="pickerArrow">▾</span>
+        </div>
+        <div class="picker-area" id="pickerArea">
+          <div class="day-toggle">
+            <button id="day7Btn" onclick="setPickerDays(7)">최근 7일</button>
+            <button id="day30Btn" onclick="setPickerDays(30)">최근 30일</button>
+          </div>
+          <input type="text" class="item-search" id="itemSearch" placeholder="🔍 상품 검색 (런/품번/브랜드)" oninput="renderItemList()">
+          <div class="item-list" id="itemList">
+            <div class="item-loading">불러오는 중…</div>
+          </div>
+          <input type="text" class="size-input" id="sizeFreeInput" placeholder="자유 사이즈 직접 입력 (Enter)" inputmode="numeric" style="margin-top:8px">
+          <div class="cache-status" id="cacheStatus"></div>
         </div>
 
         <!-- 추가된 항목 리스트 -->
@@ -222,8 +268,12 @@
     var pickerData = null; // { items, topSizes, generatedAt, cachedAt }
     var pickerLoading = false;
     var PICKER_CACHE_TTL = 60 * 60 * 1000; // 1시간
-    var currentEntry = { tracking: '', selectedItem: null, sizes: [], pendingQty: 1, entries: [] };
-    // sizes: [{size, qty}], entries: [{item, sizes:[{size,qty}]}]
+    var QUICK_PRODUCT_COUNT = 8; // 빠른 블록에 노출할 상품 개수
+    var QUICK_SIZE_COUNT = 12;
+    var currentEntry = { tracking: '', selectedItem: null, gender: '', sizes: [], pendingQty: 1, entries: [] };
+    // sizes: [{size, qty}], entries: [{item, gender, sizes:[{size,qty}]}]
+    // 마지막으로 선택한 성별 — 다음 박스에서 default 유지 (대부분 박스가 같은 성별)
+    var lastGender = localStorage.getItem('lastGender') || '';
 
     // 오늘 카운터 (자정 리셋)
     var counterState = JSON.parse(localStorage.getItem('counterState') || '{}');
@@ -829,6 +879,8 @@
         pickerData = data;
         pickerLoading = false;
         renderItemList();
+        renderQuickBlocks();
+        updateCacheStatus();
         return data;
       } catch (e) {
         pickerLoading = false;
@@ -844,27 +896,81 @@
     }
 
     function showEntryUI(tracking) {
-      currentEntry = { tracking: tracking, selectedItem: null, sizes: [], pendingQty: 1, entries: [] };
+      currentEntry = {
+        tracking: tracking, selectedItem: null,
+        gender: lastGender, // 직전 박스 성별 default 유지
+        sizes: [], pendingQty: 1, entries: []
+      };
       document.getElementById('entrySection').classList.add('show');
       document.getElementById('entryTracking').textContent = tracking;
       document.getElementById('itemSearch').value = '';
-      document.getElementById('sizeSection').style.display = 'none';
+      document.getElementById('qtyDisplay').textContent = '1';
+      // 픽커 영역은 접힌 상태로 시작
+      document.getElementById('pickerArea').classList.remove('show');
+      document.getElementById('pickerArrow').textContent = '▾';
       updateDayToggleUI();
       renderEntries();
+      // 캐시된 데이터로 즉시 블록 렌더링 (로딩 spinner 없이)
+      loadPickerFromCache();
+      renderQuickBlocks();
+      updateAddBtn();
       updateSubmitBtn();
-      // 입력 중 카메라 정지 (발열 저감 — 입력 시간이 가장 길게 카메라 켜져 있는 구간)
+      // 입력 중 카메라 정지 (발열 저감)
       stopCamera();
       var ind = document.getElementById('camInd');
       if (ind) ind.style.background = '#888';
       var status = document.getElementById('camStatus');
       if (status) status.textContent = '⏸ 박스내용 입력 중 — 카메라 일시정지';
-      if (!pickerData || !pickerData.items) loadPicker(false);
-      else renderItemList();
+      // 백그라운드로 최신 데이터 갱신 (캐시 stale 시)
+      var cacheStr = localStorage.getItem('pickerData_v1_' + pickerDays);
+      var stale = true;
+      if (cacheStr) {
+        try {
+          var c = JSON.parse(cacheStr);
+          stale = (Date.now() - new Date(c.cachedAt).getTime()) >= PICKER_CACHE_TTL;
+        } catch (_) {}
+      }
+      if (stale) loadPicker(true);
     }
 
     function hideEntryUI() {
       document.getElementById('entrySection').classList.remove('show');
-      // entry UI 닫을 때 카메라 재시작은 nextScan() 의 if(!cameraStream) startCamera() 가 처리
+    }
+
+    function togglePicker() {
+      var area = document.getElementById('pickerArea');
+      var arrow = document.getElementById('pickerArrow');
+      var on = !area.classList.contains('show');
+      if (on) {
+        area.classList.add('show');
+        arrow.textContent = '▴';
+        if (!pickerData || !pickerData.items) loadPicker(false);
+        else renderItemList();
+      } else {
+        area.classList.remove('show');
+        arrow.textContent = '▾';
+      }
+    }
+
+    // 캐시에서 즉시 로드 (네트워크 호출 없이)
+    function loadPickerFromCache() {
+      var cacheStr = localStorage.getItem('pickerData_v1_' + pickerDays);
+      if (cacheStr) {
+        try {
+          pickerData = JSON.parse(cacheStr);
+          updateCacheStatus();
+          return true;
+        } catch (_) {}
+      }
+      return false;
+    }
+
+    function updateCacheStatus() {
+      var el = document.getElementById('cacheStatus');
+      if (!el || !pickerData || !pickerData.cachedAt) return;
+      var age = Math.floor((Date.now() - new Date(pickerData.cachedAt).getTime()) / 60000);
+      var n = (pickerData.items || []).length;
+      el.textContent = '캐시: ' + n + '상품 / ' + age + '분 전 · 최근 ' + (pickerData.days || pickerDays) + '일';
     }
 
     function renderItemList() {
@@ -909,52 +1015,123 @@
       if (!pickerData) return;
       var item = pickerData.items.filter(function(it) { return itemKey(it) === key; })[0];
       if (!item) return;
+      _setSelectedItem(item);
+    }
+
+    function _setSelectedItem(item) {
       currentEntry.selectedItem = item;
       currentEntry.sizes = [];
       currentEntry.pendingQty = 1;
-      document.getElementById('sizeSection').style.display = 'block';
       document.getElementById('qtyDisplay').textContent = '1';
-      document.getElementById('sizeFreeInput').value = '';
-      renderSizeGrid();
+      renderQuickBlocks();
       renderItemList();
       updateAddBtn();
+      updateSubmitBtn();
     }
 
-    function renderSizeGrid() {
-      var el = document.getElementById('sizeGrid');
-      if (!currentEntry.selectedItem) { el.innerHTML = ''; return; }
-      // 선택된 상품의 사이즈를 빈도순 (또는 숫자순) 표시, 부족하면 topSizes 보강
-      var itemSizes = (currentEntry.selectedItem.sizes || []).map(function(s) { return s.size; });
+    // 빠른 블록 — 상품/성별/사이즈 카테고리 렌더링
+    function renderQuickBlocks() {
+      renderQuickProducts();
+      renderQuickGenders();
+      renderQuickSizes();
+    }
+
+    function renderQuickProducts() {
+      var el = document.getElementById('quickProducts');
+      if (!pickerData || !pickerData.items || pickerData.items.length === 0) {
+        el.innerHTML = '<div class="block-empty">캐시 없음 — "다른 상품 검색" 펼치고 새로고침</div>';
+        return;
+      }
+      var top = pickerData.items.slice(0, QUICK_PRODUCT_COUNT);
+      var selKey = currentEntry.selectedItem ? itemKey(currentEntry.selectedItem) : '';
+      el.innerHTML = top.map(function(it) {
+        var label = it.run || it.partNo || it.brand || '?';
+        var sub = [it.brand, it.color].filter(Boolean).join(' · ');
+        var sel = itemKey(it) === selKey ? ' sel' : '';
+        return '<button class="block product' + sel + '" onclick="quickPickProduct(\'' + itemKey(it).replace(/'/g, "\\'") + '\')">' +
+          '<div style="font-size:14px">' + esc(label) + '</div>' +
+          (sub ? '<div style="font-size:10px;opacity:.7;margin-top:2px">' + esc(sub) + '</div>' : '') +
+          '</button>';
+      }).join('');
+    }
+
+    function renderQuickGenders() {
+      var grid = document.getElementById('quickGenders');
+      var buttons = grid.querySelectorAll('button');
+      buttons.forEach(function(b) {
+        var txt = b.textContent.trim();
+        if (txt === currentEntry.gender) b.classList.add('sel');
+        else b.classList.remove('sel');
+      });
+    }
+
+    function renderQuickSizes() {
+      var el = document.getElementById('quickSizes');
+      // 사이즈 풀: 선택된 상품의 사이즈 + topSizes 합집합
+      var sizes = [];
+      if (currentEntry.selectedItem && currentEntry.selectedItem.sizes && currentEntry.selectedItem.sizes.length) {
+        sizes = currentEntry.selectedItem.sizes.map(function(s) { return s.size; });
+      } else if (pickerData && pickerData.topSizes) {
+        sizes = pickerData.topSizes.slice();
+      }
+      // topSizes 로 보강
       var top = (pickerData && pickerData.topSizes) ? pickerData.topSizes : [];
-      var union = [];
-      itemSizes.concat(top).forEach(function(s) { if (s && union.indexOf(s) < 0) union.push(s); });
-      // 숫자면 숫자순
-      union.sort(function(a, b) {
+      top.forEach(function(s) { if (sizes.indexOf(s) < 0) sizes.push(s); });
+      sizes.sort(function(a, b) {
         var na = Number(a), nb = Number(b);
         if (!isNaN(na) && !isNaN(nb)) return na - nb;
         return 0;
       });
-      union = union.slice(0, 12);
+      sizes = sizes.slice(0, QUICK_SIZE_COUNT);
+
+      if (sizes.length === 0) {
+        el.innerHTML = '<div class="block-empty">캐시 없음</div>';
+        return;
+      }
       var picked = currentEntry.sizes.map(function(s) { return s.size; });
-      el.innerHTML = union.map(function(s) {
-        var p = picked.indexOf(s) >= 0 ? ' picked' : '';
-        return '<button class="' + p.trim() + '" onclick="pickSize(\'' + esc(s) + '\')">' + esc(s) + '</button>';
+      el.innerHTML = sizes.map(function(s) {
+        var p = picked.indexOf(s) >= 0 ? ' sel' : '';
+        return '<button class="block size' + p + '" onclick="quickPickSize(\'' + esc(s) + '\')">' + esc(s) + '</button>';
       }).join('');
     }
 
+    function quickPickProduct(key) {
+      // 토글: 같은 상품 다시 누르면 해제
+      if (currentEntry.selectedItem && itemKey(currentEntry.selectedItem) === key) {
+        currentEntry.selectedItem = null;
+        currentEntry.sizes = [];
+        renderQuickBlocks();
+        updateAddBtn();
+        updateSubmitBtn();
+        return;
+      }
+      selectItem(key);
+    }
+
+    function quickPickGender(g) {
+      currentEntry.gender = (currentEntry.gender === g) ? '' : g;
+      lastGender = currentEntry.gender;
+      localStorage.setItem('lastGender', lastGender);
+      renderQuickGenders();
+    }
+
+    function quickPickSize(s) {
+      pickSize(s);
+    }
+
     function pickSize(size) {
-      if (!currentEntry.selectedItem) return;
       size = String(size).trim();
       if (!size) return;
-      // 토글: 이미 있으면 제거, 없으면 추가
+      // 상품 미선택이라도 사이즈 toggle 가능 (자유 입력 케이스)
       var idx = currentEntry.sizes.map(function(x){return x.size;}).indexOf(size);
       if (idx >= 0) {
         currentEntry.sizes.splice(idx, 1);
       } else {
         currentEntry.sizes.push({ size: size, qty: currentEntry.pendingQty });
       }
-      renderSizeGrid();
+      renderQuickSizes();
       updateAddBtn();
+      updateSubmitBtn();
     }
 
     function adjQty(delta) {
@@ -975,22 +1152,26 @@
       }
     });
 
+    function hasPendingSelection() {
+      return currentEntry.selectedItem && currentEntry.sizes.length > 0;
+    }
+
     function updateAddBtn() {
-      var has = currentEntry.selectedItem && currentEntry.sizes.length > 0;
-      document.getElementById('addEntryBtn').disabled = !has;
+      document.getElementById('addEntryBtn').disabled = !hasPendingSelection();
     }
 
     function addEntry() {
-      if (!currentEntry.selectedItem || currentEntry.sizes.length === 0) return;
+      if (!hasPendingSelection()) return;
       currentEntry.entries.push({
         item: currentEntry.selectedItem,
+        gender: currentEntry.gender,
         sizes: currentEntry.sizes.slice()
       });
-      // 다음 입력 준비 — 같은 상품 유지하고 사이즈만 비움 (같은 상품 추가 빠르게)
+      // 다음 입력 준비 — 같은 상품 유지, 사이즈만 비움
       currentEntry.sizes = [];
       currentEntry.pendingQty = 1;
       document.getElementById('qtyDisplay').textContent = '1';
-      renderSizeGrid();
+      renderQuickSizes();
       renderEntries();
       updateAddBtn();
       updateSubmitBtn();
@@ -1014,10 +1195,11 @@
     }
 
     function formatEntry(entry) {
-      // "런 사이즈1 수량1 / 사이즈2 수량2" 형식
-      var name = entry.item.run || entry.item.partNo || entry.item.brand || '?';
+      // "런 [성별] 사이즈1 수량1 / 사이즈2 수량2" 형식
+      var name = (entry.item && (entry.item.run || entry.item.partNo || entry.item.brand)) || '?';
+      var gender = entry.gender ? ' ' + entry.gender : '';
       var parts = entry.sizes.map(function(s) { return s.size + ' ' + s.qty; });
-      return name + ' ' + parts.join(' / ');
+      return name + gender + ' ' + parts.join(' / ');
     }
 
     function formatAllEntries() {
@@ -1025,11 +1207,16 @@
     }
 
     function updateSubmitBtn() {
-      document.getElementById('submitEntriesBtn').disabled = currentEntry.entries.length === 0;
+      // 항목이 추가됐거나 현재 선택이 완전(상품+사이즈)하면 활성화
+      var can = currentEntry.entries.length > 0 || hasPendingSelection();
+      document.getElementById('submitEntriesBtn').disabled = !can;
     }
 
     function submitEntries() {
+      // 대기 선택이 있으면 자동으로 entries 에 추가 (단일 박스 케이스 — "추가" 클릭 생략 가능)
+      if (hasPendingSelection()) addEntry();
       if (currentEntry.entries.length === 0) return;
+
       var content = formatAllEntries();
       var tracking = currentEntry.tracking;
       var worker = localStorage.getItem('worker') || '작업자';
