@@ -120,7 +120,7 @@
 <body>
   <div class="header">
     <span>📦 까대기 스캔</span>
-    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.3</span>
+    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.2</span>
   </div>
   <div class="net-pill" id="netPill">● 온라인</div>
 
@@ -264,11 +264,6 @@
     // ※ 기존 prod 배포 ID(AKfycbxkND...)는 clasp 권한 외이라 v3 업데이트 불가 → v3 배포 ID 사용
     // ※ 두 배포 모두 동일한 SPREADSHEET_ID 를 가리키므로 데이터 차이 없음
     var GAS_URL = 'https://script.google.com/macros/s/AKfycbxMSC2R-vTTuMZyV6y6TIsz_6Ezo7p02S6Pm98VAb2pViojRlYZrn_JeeUs2s_ev8bK_g/exec';
-    // 폰 인증 토큰 (soft-launch: 백엔드가 잘못된/누락된 토큰도 현재 통과)
-    var PHONE_TOKEN = 'kktb_v1_xqj7n4p3_token';
-    function _withToken(url) {
-      return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'token=' + encodeURIComponent(PHONE_TOKEN);
-    }
 
     // ── 상태 ──
     var scanHistory = JSON.parse(localStorage.getItem('scanHistory') || '[]').slice(0, 30);
@@ -620,7 +615,7 @@
       var worker = localStorage.getItem('worker') || '작업자';
       var nums = batchScans.join(',');
 
-      fetch(_withToken(GAS_URL) + '&action=batchScan&nums=' + encodeURIComponent(nums) + '&worker=' + encodeURIComponent(worker))
+      fetch(GAS_URL + '?action=batchScan&nums=' + encodeURIComponent(nums) + '&worker=' + encodeURIComponent(worker))
         .then(function(r) { return r.text(); })
         .then(function(text) {
           var result;
@@ -664,7 +659,7 @@
       var retryCount = 0;
 
       function doFetch() {
-        fetch(_withToken(GAS_URL) + '&action=scan&num=' + encodeURIComponent(num) + '&worker=' + encodeURIComponent(worker))
+        fetch(GAS_URL + '?action=scan&num=' + encodeURIComponent(num) + '&worker=' + encodeURIComponent(worker))
           .then(function(r) { return r.text(); })
           .then(function(text) {
             var result;
@@ -778,12 +773,12 @@
         try {
           var url;
           if (item.type === 'fillScanLog') {
-            url = _withToken(GAS_URL) + '&action=fillScanLog' +
+            url = GAS_URL + '?action=fillScanLog' +
               '&tracking=' + encodeURIComponent(item.tracking) +
               '&content=' + encodeURIComponent(item.content) +
               '&worker=' + encodeURIComponent(item.worker || worker);
           } else {
-            url = _withToken(GAS_URL) + '&action=scan&num=' + encodeURIComponent(item.num) +
+            url = GAS_URL + '?action=scan&num=' + encodeURIComponent(item.num) +
               '&worker=' + encodeURIComponent(item.worker || worker);
           }
           var res = await fetch(url);
@@ -892,7 +887,7 @@
       pickerLoading = true;
       renderItemList();
       try {
-        var res = await fetch(_withToken(GAS_URL) + '&action=getRecentItems&days=' + pickerDays);
+        var res = await fetch(GAS_URL + '?action=getRecentItems&days=' + pickerDays);
         var text = await res.text();
         var data = JSON.parse(text);
         if (data.error) throw new Error(data.error);
@@ -1247,7 +1242,7 @@
       btn.disabled = true;
       btn.textContent = '전송 중...';
 
-      fetch(_withToken(GAS_URL) + '&action=fillScanLog&tracking=' + encodeURIComponent(tracking) +
+      fetch(GAS_URL + '?action=fillScanLog&tracking=' + encodeURIComponent(tracking) +
             '&content=' + encodeURIComponent(content) +
             '&worker=' + encodeURIComponent(worker))
         .then(function(r) { return r.text(); })
@@ -1314,7 +1309,7 @@
       btn.disabled = true;
       btn.textContent = '조회 중...';
       try {
-        var res = await fetch(_withToken(GAS_URL) + '&action=getOrderItems&tracking=' + encodeURIComponent(currentEntry.tracking));
+        var res = await fetch(GAS_URL + '?action=getOrderItems&tracking=' + encodeURIComponent(currentEntry.tracking));
         var text = await res.text();
         var data;
         try { data = JSON.parse(text); } catch (e) { throw new Error('응답 파싱 실패'); }
