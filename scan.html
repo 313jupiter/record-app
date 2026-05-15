@@ -265,7 +265,7 @@
     var scanLoopActive = false;
     var scanTimerId = null;
     var SCAN_INTERVAL_MS = 100; // 10Hz throttle (발열 저감)
-    var IDLE_STOP_MS = 90 * 1000; // 90초 무동작 시 자동 정지
+    var IDLE_STOP_MS = 60 * 1000; // 60초 무동작 시 자동 정지 (발열 저감)
     var idleTimer = null;
     var _polyfillTried = false;
 
@@ -299,9 +299,11 @@
     function resetIdleTimer() {
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = setTimeout(function() {
-        console.log('[scan] idle 90s — stopping camera');
+        console.log('[scan] idle ' + (IDLE_STOP_MS/1000) + 's — stopping camera');
         stopCamera();
-        document.getElementById('camStatus').textContent = '⏸ 90초 무동작 — 화면 터치하면 재시작';
+        var ind = document.getElementById('camInd');
+        if (ind) ind.style.background = '#888';
+        document.getElementById('camStatus').textContent = '⏸ ' + (IDLE_STOP_MS/1000) + '초 무동작 — 화면 터치하면 재시작';
         document.getElementById('cam-wrap').addEventListener('click', restartCameraOnce, { once: true });
       }, IDLE_STOP_MS);
     }
@@ -850,12 +852,19 @@
       updateDayToggleUI();
       renderEntries();
       updateSubmitBtn();
+      // 입력 중 카메라 정지 (발열 저감 — 입력 시간이 가장 길게 카메라 켜져 있는 구간)
+      stopCamera();
+      var ind = document.getElementById('camInd');
+      if (ind) ind.style.background = '#888';
+      var status = document.getElementById('camStatus');
+      if (status) status.textContent = '⏸ 박스내용 입력 중 — 카메라 일시정지';
       if (!pickerData || !pickerData.items) loadPicker(false);
       else renderItemList();
     }
 
     function hideEntryUI() {
       document.getElementById('entrySection').classList.remove('show');
+      // entry UI 닫을 때 카메라 재시작은 nextScan() 의 if(!cameraStream) startCamera() 가 처리
     }
 
     function renderItemList() {
