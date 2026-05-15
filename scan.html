@@ -96,6 +96,21 @@
     .switch input:checked + .switch-slider{background:#e37400}
     .switch input:checked + .switch-slider:before{transform:translateX(16px)}
 
+    /* 작업자 모달 + 표시 */
+    .worker-pill{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.18);padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;margin-left:8px}
+    .worker-pill:active{background:rgba(255,255,255,.3)}
+    .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:500;align-items:center;justify-content:center;padding:20px}
+    .modal-backdrop.show{display:flex}
+    .modal{background:#fff;border-radius:14px;padding:20px;max-width:340px;width:100%;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+    .modal h2{font-size:17px;margin-bottom:8px;color:#e37400}
+    .modal p{font-size:13px;color:#666;margin-bottom:12px;line-height:1.4}
+    .modal input{width:100%;padding:12px;font-size:16px;border:2px solid #e8eaed;border-radius:8px;outline:none}
+    .modal input:focus{border-color:#e37400}
+    .modal .actions{display:flex;gap:8px;margin-top:12px}
+    .modal .actions button{flex:1;padding:12px;font-size:14px;font-weight:700;border:none;border-radius:8px;cursor:pointer}
+    .modal .btn-primary{background:#e37400;color:#fff}
+    .modal .btn-secondary{background:#e8eaed;color:#666}
+
     /* 빠른 블록 입력 */
     .quick-cat{margin-bottom:10px}
     .quick-cat .cat-label{font-size:11px;font-weight:700;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
@@ -119,8 +134,23 @@
 </head>
 <body>
   <div class="header">
-    <span>📦 까대기 스캔</span>
-    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.3</span>
+    <span>📦 까대기 스캔
+      <span class="worker-pill" id="workerPill" onclick="promptWorker()">👤 <span id="workerLabel">작업자</span></span>
+    </span>
+    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.4</span>
+  </div>
+
+  <!-- 작업자 입력 모달 (첫 로드 또는 변경 클릭 시) -->
+  <div class="modal-backdrop" id="workerModal">
+    <div class="modal">
+      <h2>👤 작업자 이름</h2>
+      <p>스캔 기록에 들어갈 작업자 이름을 입력하세요. 한 번 입력하면 폰에 저장됩니다 (변경: 헤더 작업자 칩 탭).</p>
+      <input type="text" id="workerInput" placeholder="예: 김작업자" autocomplete="off" maxlength="20">
+      <div class="actions">
+        <button class="btn-secondary" onclick="closeWorkerModal()" id="workerCancelBtn">취소</button>
+        <button class="btn-primary" onclick="saveWorker()">저장</button>
+      </div>
+    </div>
   </div>
   <div class="net-pill" id="netPill">● 온라인</div>
 
@@ -269,6 +299,43 @@
     function _withToken(url) {
       return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'token=' + encodeURIComponent(PHONE_TOKEN);
     }
+
+    // 작업자 — localStorage 'worker' 키 사용 (기존 worker 호출과 호환)
+    function getWorker() { return localStorage.getItem('worker') || ''; }
+    function setWorker(w) {
+      w = String(w || '').trim();
+      if (!w) return false;
+      localStorage.setItem('worker', w);
+      var lbl = document.getElementById('workerLabel');
+      if (lbl) lbl.textContent = w;
+      return true;
+    }
+    function promptWorker() {
+      document.getElementById('workerInput').value = getWorker() || '';
+      // 기존 값 있으면 취소 버튼 활성, 없으면 강제 입력 모드
+      document.getElementById('workerCancelBtn').style.display = getWorker() ? '' : 'none';
+      document.getElementById('workerModal').classList.add('show');
+      setTimeout(function(){ try { document.getElementById('workerInput').focus(); } catch(_){} }, 100);
+    }
+    function closeWorkerModal() {
+      if (!getWorker()) return; // 작업자 없으면 닫지 못함 (첫 진입)
+      document.getElementById('workerModal').classList.remove('show');
+    }
+    function saveWorker() {
+      var v = document.getElementById('workerInput').value;
+      if (!setWorker(v)) { toast && toast('이름을 입력하세요'); return; }
+      document.getElementById('workerModal').classList.remove('show');
+    }
+    // 첫 로드 시 작업자 없으면 강제 입력
+    (function _ensureWorker() {
+      var lbl = document.getElementById('workerLabel');
+      var w = getWorker();
+      if (lbl) lbl.textContent = w || '작업자';
+      if (!w) {
+        // DOM ready 후 표시
+        setTimeout(promptWorker, 300);
+      }
+    })();
 
     // ── 상태 ──
     var scanHistory = JSON.parse(localStorage.getItem('scanHistory') || '[]').slice(0, 30);
