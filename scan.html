@@ -117,6 +117,7 @@
 <body>
   <div class="header">
     <span>📦 까대기 스캔</span>
+    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.1</span>
   </div>
   <div class="net-pill" id="netPill">● 온라인</div>
 
@@ -1231,8 +1232,19 @@
         .then(function(r) { return r.text(); })
         .then(function(text) {
           var result;
-          try { result = JSON.parse(text); } catch (e) { result = { error: text }; }
+          var jsonOk = true;
+          try { result = JSON.parse(text); } catch (e) { jsonOk = false; }
+          // 응답이 JSON 이 아니면 (예: 엔드포인트 미존재 → HTML 페이지 반환) 큐잉
+          if (!jsonOk || (result && !result.status && result.error === undefined)) {
+            throw new Error('non-JSON response (endpoint missing? 강제 새로고침 필요)');
+          }
           if (result.error) {
+            // 에러 표시 + 결과 영역에도 명확히 노출 (사용자가 갇히지 않게)
+            var area = document.getElementById('resultArea');
+            area.className = 'result show';
+            area.innerHTML = '<div class="result-card warn"><b>⚠️ 전송 실패</b>' +
+              '<p>' + esc(result.error) + '</p>' +
+              '<p style="margin-top:6px;font-size:11px;color:#888">건너뛰기 누르거나 다시 전송 가능</p></div>';
             toast('전송 실패: ' + result.error);
             btn.disabled = false;
             btn.textContent = '✓ 전송 → 다음 운송장';
@@ -1245,7 +1257,7 @@
           nextScan();
         })
         .catch(function(e) {
-          // 오프라인 큐잉 (스캔로그 기입은 fillScanLog 타입으로 큐)
+          // 네트워크 오류 또는 응답 파싱 실패 → 오프라인 큐잉
           pendingQueue.push({
             type: 'fillScanLog',
             tracking: tracking,
@@ -1255,6 +1267,11 @@
           });
           persistQueue();
           refreshCounters();
+          var area = document.getElementById('resultArea');
+          area.className = 'result show';
+          area.innerHTML = '<div class="result-card warn"><b>📡 전송 큐잉됨</b>' +
+            '<p>' + esc(e.message || '네트워크 오류') + '</p>' +
+            '<p style="margin-top:6px;font-size:11px;color:#888">큐 ' + pendingQueue.length + '건 — 온라인 복구 시 자동 재시도</p></div>';
           toast('네트워크 오류 — 큐잉됨 (' + pendingQueue.length + '건)');
           addHistory(tracking, '📡 박스내용 큐잉');
           hideEntryUI();
