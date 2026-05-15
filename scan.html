@@ -13,10 +13,7 @@
     .card h3{font-size:15px;margin-bottom:10px;color:#e37400}
     #cam-wrap{position:relative;border-radius:10px;overflow:hidden;margin-bottom:10px;background:#111;aspect-ratio:4/3}
     #cam-video{width:100%;height:100%;object-fit:cover;display:block}
-    .roi-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:35%;border:2px solid #34c759;border-radius:8px;pointer-events:none;box-shadow:0 0 0 9999px rgba(0,0,0,.25);transition:border-color .15s,box-shadow .15s}
-    .roi-overlay.hit{border-color:#00ff66;border-width:4px;box-shadow:0 0 0 9999px rgba(0,0,0,.25),0 0 32px 8px rgba(0,255,102,.6)}
-    .scan-flash{position:fixed;inset:0;background:rgba(13,144,79,.35);pointer-events:none;z-index:400;opacity:0;transition:opacity .12s}
-    .scan-flash.show{opacity:1}
+    .roi-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:35%;border:2px solid #34c759;border-radius:8px;pointer-events:none;box-shadow:0 0 0 9999px rgba(0,0,0,.25)}
     .cam-status{position:absolute;bottom:8px;left:8px;right:8px;text-align:center;color:#fff;font-size:11px;background:rgba(0,0,0,.5);padding:4px 8px;border-radius:6px}
     .cam-ind{position:absolute;top:8px;right:8px;width:10px;height:10px;border-radius:50%;background:#ffd60a;box-shadow:0 0 4px rgba(0,0,0,.4)}
     .cam-actions{position:absolute;top:8px;left:8px;display:flex;gap:6px}
@@ -120,7 +117,7 @@
 <body>
   <div class="header">
     <span>📦 까대기 스캔</span>
-    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.2</span>
+    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.1</span>
   </div>
   <div class="net-pill" id="netPill">● 온라인</div>
 
@@ -133,7 +130,7 @@
         <button class="btn" id="btnModeB" onclick="setMode('single')" style="flex:1;padding:10px;font-size:14px;background:#888">B. 일괄</button>
       </div>
       <div class="entry-toggle">
-        <span><b>📝 박스내용 입력 모드</b> <span style="color:#aaa;font-size:11px">(B. 단건에서만 적용)</span></span>
+        <span>📝 박스 내용 입력 (단건 모드)</span>
         <label class="switch">
           <input type="checkbox" id="entryToggle" onchange="toggleEntryMode(this.checked)">
           <span class="switch-slider"></span>
@@ -233,16 +230,11 @@
         <!-- 추가된 항목 리스트 -->
         <div class="entries-list" id="entriesList"></div>
 
-        <button class="btn" onclick="autoFillFromOrder()" id="autoFillBtn"
-                style="background:#1a73e8;color:#fff;margin-top:8px">
-          📦 주문 그대로 자동 채움
-        </button>
-
-        <button class="btn btn-green" onclick="submitEntries()" id="submitEntriesBtn" disabled style="margin-top:8px">
+        <button class="btn btn-green" onclick="submitEntries()" id="submitEntriesBtn" disabled style="margin-top:10px">
           ✓ 전송 → 다음 운송장
         </button>
         <button class="btn" onclick="skipEntry()" style="background:#888;margin-top:6px">
-          ⏭ 이 박스 비워둠 (메모 없이 다음 운송장)
+          ⏭ 건너뛰기 (입력 없이 다음)
         </button>
       </div>
     </div>
@@ -257,7 +249,6 @@
 
   </div>
   <div id="toast" class="toast"></div>
-  <div id="scanFlash" class="scan-flash"></div>
 
   <script>
     // GAS 배포 URL — v3 (스캔/배치 + 픽커 + 스캔로그G열) — 매입장부 원본 시트 (1nHJF8yzm5...REwU0)
@@ -828,13 +819,6 @@
         osc.frequency.value = 1400; gain.gain.value = 0.25;
         osc.start(); osc.stop(ctx.currentTime + 0.1);
       } catch (e) {}
-      // 시각 피드백 — 화면 녹색 플래시 + ROI 펄스
-      try {
-        var roi = document.getElementById('roiOverlay');
-        var flash = document.getElementById('scanFlash');
-        if (roi) { roi.classList.add('hit'); setTimeout(function(){ roi.classList.remove('hit'); }, 250); }
-        if (flash) { flash.classList.add('show'); setTimeout(function(){ flash.classList.remove('show'); }, 180); }
-      } catch (e) {}
     }
 
     // 화면 가려지면 카메라 정지 (배터리 절약)
@@ -1300,57 +1284,6 @@
     function skipEntry() {
       hideEntryUI();
       nextScan();
-    }
-
-    // 📦 주문 그대로 자동 채움 — 매입통합 매칭 행들을 entries 에 자동 추가
-    async function autoFillFromOrder() {
-      if (!currentEntry.tracking) return;
-      var btn = document.getElementById('autoFillBtn');
-      btn.disabled = true;
-      btn.textContent = '조회 중...';
-      try {
-        var res = await fetch(GAS_URL + '?action=getOrderItems&tracking=' + encodeURIComponent(currentEntry.tracking));
-        var text = await res.text();
-        var data;
-        try { data = JSON.parse(text); } catch (e) { throw new Error('응답 파싱 실패'); }
-        if (!data.matched || data.matched.length === 0) {
-          toast('매칭되는 주문 없음 (운송장: ' + currentEntry.tracking + ')');
-          return;
-        }
-        // 같은 (run|partNo|color) 끼리 그룹핑 → 사이즈가 여러 개면 한 entry 안에 묶음
-        var groups = {};
-        data.matched.forEach(function(it) {
-          var name = it.run || it.partNo || it.brand || '?';
-          var key = name + '|' + (it.color || '');
-          if (!groups[key]) {
-            groups[key] = {
-              item: { brand: it.brand, run: it.run, color: it.color, partNo: it.partNo, sizes: [], count: 0 },
-              gender: currentEntry.gender || '',  // 마지막 선택 성별 유지
-              sizes: []
-            };
-          }
-          if (it.size && it.orderQty > 0) {
-            groups[key].sizes.push({ size: it.size, qty: it.orderQty });
-          }
-        });
-        // entries 에 추가 (기존 항목 유지 — 멀티 박스 케이스 대응)
-        var addedCount = 0;
-        Object.keys(groups).forEach(function(k) {
-          var g = groups[k];
-          if (g.sizes.length > 0) {
-            currentEntry.entries.push(g);
-            addedCount++;
-          }
-        });
-        renderEntries();
-        updateSubmitBtn();
-        toast(addedCount + '항목 자동 채움 (' + data.matched.length + '행)');
-      } catch (e) {
-        toast('자동 채움 실패: ' + (e.message || '오류'));
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '📦 주문 그대로 자동 채움';
-      }
     }
   </script>
 </body>
