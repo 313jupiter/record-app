@@ -137,7 +137,7 @@
     <span>📦 까대기 스캔
       <span class="worker-pill" id="workerPill" onclick="promptWorker()">👤 <span id="workerLabel">작업자</span></span>
     </span>
-    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.5</span>
+    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.4</span>
   </div>
 
   <!-- 작업자 입력 모달 (첫 로드 또는 변경 클릭 시) -->
@@ -258,17 +258,6 @@
           </div>
           <input type="text" class="size-input" id="sizeFreeInput" placeholder="자유 사이즈 직접 입력 (Enter)" inputmode="numeric" style="margin-top:8px">
           <div class="cache-status" id="cacheStatus"></div>
-        </div>
-
-        <!-- SKU 스캔 모드 (대안 입력) -->
-        <div class="quick-cat" style="border-top:1px dashed #ddd;padding-top:10px;margin-top:10px">
-          <div class="cat-label">🔎 SKU 직접 입력 (선택사항 — 매입통합 SKU 매칭)</div>
-          <div style="display:flex;gap:6px">
-            <input type="text" id="skuInput" placeholder="예: NK-FN0228001-260 또는 바코드 스캔"
-                   style="flex:1;padding:10px;font-size:14px;border:2px solid #e8eaed;border-radius:8px;outline:none"
-                   autocomplete="off">
-            <button class="btn btn-orange" onclick="lookupSku()" style="width:60px;padding:10px;margin:0;font-size:18px">+</button>
-          </div>
         </div>
 
         <!-- 추가된 항목 리스트 -->
@@ -1136,50 +1125,21 @@
       renderQuickSizes();
     }
 
-    // 즐겨찾기 (localStorage 'favItems' = 키 배열, 최대 20)
-    function getFavItems() {
-      try { return JSON.parse(localStorage.getItem('favItems') || '[]'); }
-      catch (_) { return []; }
-    }
-    function toggleFav(key, ev) {
-      if (ev && ev.stopPropagation) ev.stopPropagation();
-      var favs = getFavItems();
-      var i = favs.indexOf(key);
-      if (i >= 0) favs.splice(i, 1);
-      else favs.unshift(key);
-      favs = favs.slice(0, 20);
-      localStorage.setItem('favItems', JSON.stringify(favs));
-      renderQuickProducts();
-      toast(i >= 0 ? '즐겨찾기 해제' : '⭐ 즐겨찾기 추가');
-    }
-
     function renderQuickProducts() {
       var el = document.getElementById('quickProducts');
       if (!pickerData || !pickerData.items || pickerData.items.length === 0) {
         el.innerHTML = '<div class="block-empty">캐시 없음 — "다른 상품 검색" 펼치고 새로고침</div>';
         return;
       }
-      var favs = getFavItems();
-      var favItems = [];
-      var nonFavItems = [];
-      pickerData.items.forEach(function(it) {
-        if (favs.indexOf(itemKey(it)) >= 0) favItems.push(it);
-        else nonFavItems.push(it);
-      });
-      var top = favItems.concat(nonFavItems).slice(0, QUICK_PRODUCT_COUNT);
+      var top = pickerData.items.slice(0, QUICK_PRODUCT_COUNT);
       var selKey = currentEntry.selectedItem ? itemKey(currentEntry.selectedItem) : '';
       el.innerHTML = top.map(function(it) {
-        var k = itemKey(it);
         var label = it.run || it.partNo || it.brand || '?';
         var sub = [it.brand, it.color].filter(Boolean).join(' · ');
-        var sel = k === selKey ? ' sel' : '';
-        var isFav = favs.indexOf(k) >= 0;
-        var star = isFav ? '⭐' : '☆';
-        var keyEsc = k.replace(/'/g, "\\'");
-        return '<button class="block product' + sel + '" style="position:relative" onclick="quickPickProduct(\'' + keyEsc + '\')">' +
+        var sel = itemKey(it) === selKey ? ' sel' : '';
+        return '<button class="block product' + sel + '" onclick="quickPickProduct(\'' + itemKey(it).replace(/'/g, "\\'") + '\')">' +
           '<div style="font-size:14px">' + esc(label) + '</div>' +
           (sub ? '<div style="font-size:10px;opacity:.7;margin-top:2px">' + esc(sub) + '</div>' : '') +
-          '<span onclick="toggleFav(\'' + keyEsc + '\', event)" style="position:absolute;top:2px;right:4px;font-size:14px;cursor:pointer;padding:2px 4px">' + star + '</span>' +
           '</button>';
       }).join('');
     }
@@ -1354,21 +1314,9 @@
       btn.disabled = true;
       btn.textContent = '전송 중...';
 
-      // 구조화 JSON — 추후 집계용 (run, gender, sizes:[{size,qty}])
-      var structured = JSON.stringify(currentEntry.entries.map(function(e) {
-        return {
-          run: (e.item && (e.item.run || e.item.partNo || e.item.brand)) || '',
-          brand: (e.item && e.item.brand) || '',
-          color: (e.item && e.item.color) || '',
-          partNo: (e.item && e.item.partNo) || '',
-          gender: e.gender || '',
-          sizes: e.sizes || []
-        };
-      }));
       fetch(_withToken(GAS_URL) + '&action=fillScanLog&tracking=' + encodeURIComponent(tracking) +
             '&content=' + encodeURIComponent(content) +
-            '&worker=' + encodeURIComponent(worker) +
-            '&structured=' + encodeURIComponent(structured))
+            '&worker=' + encodeURIComponent(worker))
         .then(function(r) { return r.text(); })
         .then(function(text) {
           var result;
@@ -1425,60 +1373,6 @@
       hideEntryUI();
       nextScan();
     }
-
-    // 🔎 SKU 단건 조회 + entry 자동 추가
-    async function lookupSku() {
-      var input = document.getElementById('skuInput');
-      var sku = (input.value || '').trim();
-      if (!sku) return;
-      try {
-        var res = await fetch(_withToken(GAS_URL) + '&action=lookupSku&sku=' + encodeURIComponent(sku));
-        var text = await res.text();
-        var data;
-        try { data = JSON.parse(text); } catch (e) { throw new Error('응답 파싱 실패'); }
-        if (data.error) { toast('오류: ' + data.error); return; }
-        if (!data.matched) { toast('SKU 매칭 없음: ' + sku); return; }
-        var m = data.matched;
-        var runName = m.run || m.partNo || m.brand || '?';
-        var size = String(m.size || '').trim();
-        if (!size) { toast('매칭 행에 사이즈 없음'); return; }
-
-        // 기존 entry 의 같은 (run + size) 찾으면 qty +1, 같은 run 다른 size 면 sizes 추가, 새 run 이면 신규 entry
-        var handled = false;
-        for (var i = 0; i < currentEntry.entries.length; i++) {
-          var en = currentEntry.entries[i];
-          var enRun = (en.item && (en.item.run || en.item.partNo || en.item.brand)) || '';
-          if (enRun === runName) {
-            var sizeFound = false;
-            for (var j = 0; j < en.sizes.length; j++) {
-              if (String(en.sizes[j].size) === size) { en.sizes[j].qty++; sizeFound = true; break; }
-            }
-            if (!sizeFound) en.sizes.push({ size: size, qty: 1 });
-            handled = true; break;
-          }
-        }
-        if (!handled) {
-          currentEntry.entries.push({
-            item: { brand: m.brand, run: m.run, color: m.color, partNo: m.partNo, sizes: [], count: 0 },
-            gender: currentEntry.gender || '',
-            sizes: [{ size: size, qty: 1 }]
-          });
-        }
-        renderEntries();
-        updateSubmitBtn();
-        scanFeedback();
-        toast('✓ ' + runName + ' ' + size + (m.color ? ' (' + m.color + ')' : ''));
-        input.value = '';
-        input.focus();
-      } catch (e) {
-        toast('SKU 조회 실패: ' + (e.message || '오류'));
-      }
-    }
-
-    // Enter 키 = SKU 조회
-    document.getElementById('skuInput') && document.getElementById('skuInput').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') { e.preventDefault(); lookupSku(); }
-    });
 
     // 📦 주문 그대로 자동 채움 — 매입통합 매칭 행들을 entries 에 자동 추가
     async function autoFillFromOrder() {
