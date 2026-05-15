@@ -204,8 +204,10 @@
   <div id="toast" class="toast"></div>
 
   <script>
-    // 운영 GAS 배포 URL — 매입장부 원본 시트 (1nHJF8yzm5...REwU0)
-    var GAS_URL = 'https://script.google.com/macros/s/AKfycbxkNDf2iq0pgaQsgmZcuhShUP07XnNdS53CMfwN5712z853qz39DafFb5_ItbhGROum/exec';
+    // GAS 배포 URL — v3 (스캔/배치 + 픽커 + 스캔로그G열) — 매입장부 원본 시트 (1nHJF8yzm5...REwU0)
+    // ※ 기존 prod 배포 ID(AKfycbxkND...)는 clasp 권한 외이라 v3 업데이트 불가 → v3 배포 ID 사용
+    // ※ 두 배포 모두 동일한 SPREADSHEET_ID 를 가리키므로 데이터 차이 없음
+    var GAS_URL = 'https://script.google.com/macros/s/AKfycbxMSC2R-vTTuMZyV6y6TIsz_6Ezo7p02S6Pm98VAb2pViojRlYZrn_JeeUs2s_ev8bK_g/exec';
 
     // ── 상태 ──
     var scanHistory = JSON.parse(localStorage.getItem('scanHistory') || '[]').slice(0, 30);
