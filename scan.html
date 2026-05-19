@@ -161,6 +161,10 @@
     body.phase-entry.mode-barcode #manualEntryUI { display:none !important; }
     body.phase-entry.mode-barcode #autoFillBtn { display:none !important; }
     body.phase-entry h3 { display:none; } /* 박스 내용 입력 헤더 — 미니 헤더가 대체 */
+    /* 수동 모드일 땐 카메라 영역 숨김 (picker UI 가 그 자리 사용) */
+    body.phase-entry:not(.mode-barcode) #cam-wrap { display:none !important; }
+    /* 온라인 인디케이터 (.net-pill) — 박스내용 phase 에선 mini-header 안 ('2 항목' 옆) 으로 가려져 안 보이게 */
+    body.phase-entry .net-pill { display:none; }
 
     /* fixed footer — 전송 + 비워둠 (박스내용 phase 에서만) */
     .entry-footer { display:none; }
