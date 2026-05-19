@@ -162,9 +162,9 @@
     body.phase-entry.mode-barcode #autoFillBtn { display:none !important; }
     body.phase-entry h3 { display:none; } /* 박스 내용 입력 헤더 — 미니 헤더가 대체 */
 
-    /* fixed footer — 전송 + 비워둠 */
-    .entry-footer { display:none; position:fixed; bottom:0; left:0; right:0; z-index:70; background:#fff; padding:10px 14px; box-shadow:0 -2px 10px rgba(0,0,0,.12); display:flex; gap:8px; }
-    body.phase-entry .entry-footer { display:flex; }
+    /* fixed footer — 전송 + 비워둠 (박스내용 phase 에서만) */
+    .entry-footer { display:none; }
+    body.phase-entry .entry-footer { display:flex; position:fixed; bottom:0; left:0; right:0; z-index:70; background:#fff; padding:10px 14px; box-shadow:0 -2px 10px rgba(0,0,0,.12); gap:8px; }
     .entry-footer button { flex:1; margin:0; padding:14px; font-size:15px; font-weight:700; border:none; border-radius:10px; cursor:pointer; }
     .entry-footer .submit-btn { background:#0d904f; color:#fff; }
     .entry-footer .submit-btn:disabled { background:#bbb; color:#666; }
@@ -790,7 +790,7 @@
     function sendBatch() {
       if (batchScans.length === 0) return;
       var area = document.getElementById('resultArea');
-      area.className = 'result show';
+      area.className = 'result phase-waybill-only show';
       area.innerHTML = '<div class="loading"><div class="spinner"></div>' + batchScans.length + '건 일괄 전송 중...</div>';
 
       var worker = localStorage.getItem('worker') || '작업자';
@@ -833,7 +833,7 @@
     // ── GAS 단건 전송 (B모드) ──
     function sendToSheet(num) {
       var area = document.getElementById('resultArea');
-      area.className = 'result show';
+      area.className = 'result phase-waybill-only show';
       var worker = localStorage.getItem('worker') || '작업자';
 
       // 낙관적 UI — entryMode ON 단건 모드면 GAS 응답 기다리지 않고 즉시 박스 내용 입력 화면 표시.
@@ -1698,7 +1698,7 @@
           if (result.error) {
             // 에러 표시 + 결과 영역에도 명확히 노출 (사용자가 갇히지 않게)
             var area = document.getElementById('resultArea');
-            area.className = 'result show';
+            area.className = 'result phase-waybill-only show';
             area.innerHTML = '<div class="result-card warn"><b>⚠️ 전송 실패</b>' +
               '<p>' + esc(result.error) + '</p>' +
               '<p style="margin-top:6px;font-size:11px;color:#888">건너뛰기 누르거나 다시 전송 가능</p></div>';
@@ -1725,7 +1725,7 @@
           persistQueue();
           refreshCounters();
           var area = document.getElementById('resultArea');
-          area.className = 'result show';
+          area.className = 'result phase-waybill-only show';
           area.innerHTML = '<div class="result-card warn"><b>📡 전송 큐잉됨</b>' +
             '<p>' + esc(e.message || '네트워크 오류') + '</p>' +
             '<p style="margin-top:6px;font-size:11px;color:#888">큐 ' + pendingQueue.length + '건 — 온라인 복구 시 자동 재시도</p></div>';
