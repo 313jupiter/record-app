@@ -1134,6 +1134,12 @@
       document.body.classList.add('phase-entry');
       if (entryScanMode === 'barcode') document.body.classList.add('mode-barcode');
       else document.body.classList.remove('mode-barcode');
+      // 카메라(#cam-wrap) 를 entrySection 상단으로 이동 — scanCard 가 display:none 되면 카메라도 사라지므로
+      var camWrap = document.getElementById('cam-wrap');
+      var miniHeader = document.querySelector('.entry-mini-header');
+      if (camWrap && miniHeader && camWrap.parentElement !== miniHeader.parentElement) {
+        miniHeader.parentElement.insertBefore(camWrap, miniHeader.nextSibling);
+      }
       // 스크롤 위치 초기화 (이전 box 의 스크롤 잔여 제거)
       window.scrollTo(0, 0);
       document.getElementById('itemSearch').value = '';
@@ -1330,6 +1336,15 @@
       document.getElementById('entrySection').classList.remove('show');
       document.body.classList.remove('phase-entry');
       document.body.classList.remove('mode-barcode');
+      // cam-wrap 원위치 복귀 — scanCard 안 h3 다음 위치
+      var camWrap = document.getElementById('cam-wrap');
+      var scanCard = document.getElementById('scanCard');
+      if (camWrap && scanCard) {
+        var h3 = scanCard.querySelector('h3');
+        if (h3 && camWrap.parentElement !== scanCard) {
+          scanCard.insertBefore(camWrap, h3.nextSibling);
+        }
+      }
     }
 
     /** 미니헤더 ← 운송장 버튼 — 운송장 phase 로 복귀 (현재 entries 폐기 경고 후). */
