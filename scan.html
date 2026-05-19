@@ -133,6 +133,49 @@
     .cache-status{font-size:10px;color:#aaa;text-align:right;margin-top:4px}
     .product-favs-bar{display:flex;align-items:center;gap:6px;font-size:11px;color:#888;margin-top:6px}
     .product-favs-bar .add-fav{background:#fff8e1;border:1px dashed #e37400;color:#e37400;padding:4px 10px;border-radius:6px;cursor:pointer;font-weight:600}
+
+    /* ━━━ Phase state machine — 박스내용 진입 시 운송장 chrome 모두 hide, entry UI 풀스크린 ━━━ */
+    body.phase-entry { background:#0f172a; }
+    body.phase-entry .header { display:none !important; }
+    body.phase-entry .phase-waybill-only { display:none !important; }
+    body.phase-entry .container { padding:0; max-width:none; margin:0; }
+    body.phase-entry #entrySection { display:block !important; margin:0 !important; min-height:100vh; padding-bottom:90px; }
+    body.phase-entry #entrySection > .card { margin:0; border-radius:0; padding:0; min-height:100vh; background:#fff; }
+
+    /* sticky 미니 헤더 — 운송장 + 모드 토글 (한 줄) */
+    .entry-mini-header { display:none; position:sticky; top:0; z-index:60; background:#1a73e8; color:#fff; padding:10px 14px; font-size:13px; align-items:center; justify-content:space-between; gap:8px; box-shadow:0 2px 6px rgba(0,0,0,.15); }
+    body.phase-entry .entry-mini-header { display:flex; }
+    .entry-mini-header .mh-tracking { font-weight:700; font-size:14px; letter-spacing:.5px; }
+    .entry-mini-header .mh-back { background:rgba(255,255,255,.18); border:none; color:#fff; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; }
+    .entry-mini-header .mh-back:active { background:rgba(255,255,255,.3); }
+
+    /* sticky 카메라 (박스내용 phase 만) */
+    body.phase-entry #cam-wrap { position:sticky; top:42px; z-index:50; height:32vh; min-height:200px; max-height:280px; border-radius:0; border:none; box-shadow:0 4px 8px rgba(0,0,0,.2); }
+    body.phase-entry .entry-tracking { display:none; } /* mini-header 가 대체 */
+    body.phase-entry .entry-mode-bar { padding:10px 14px 8px 14px; margin:0; }
+    body.phase-entry #barcodeModePanel { margin:0 14px 8px 14px; }
+    body.phase-entry .entries-list { margin:8px 14px; }
+    body.phase-entry .entries-list .entry-item { padding:12px 14px; font-size:14px; border-radius:8px; }
+
+    /* 박스내용 phase 에서 picker UI, SKU 직접 입력, 자동 채움 등 — 바코드 모드면 모두 hide */
+    body.phase-entry.mode-barcode #manualEntryUI { display:none !important; }
+    body.phase-entry.mode-barcode #autoFillBtn { display:none !important; }
+    body.phase-entry h3 { display:none; } /* 박스 내용 입력 헤더 — 미니 헤더가 대체 */
+
+    /* fixed footer — 전송 + 비워둠 */
+    .entry-footer { display:none; position:fixed; bottom:0; left:0; right:0; z-index:70; background:#fff; padding:10px 14px; box-shadow:0 -2px 10px rgba(0,0,0,.12); display:flex; gap:8px; }
+    body.phase-entry .entry-footer { display:flex; }
+    .entry-footer button { flex:1; margin:0; padding:14px; font-size:15px; font-weight:700; border:none; border-radius:10px; cursor:pointer; }
+    .entry-footer .submit-btn { background:#0d904f; color:#fff; }
+    .entry-footer .submit-btn:disabled { background:#bbb; color:#666; }
+    .entry-footer .submit-btn:active:not(:disabled) { background:#076b3a; }
+    .entry-footer .skip-btn { flex:0 0 90px; background:#e8eaed; color:#666; font-size:13px; }
+    .entry-footer .skip-btn:active { background:#c8ccd0; }
+
+    /* 토스트 위치 변경 — 박스내용 phase 에선 mini-header 바로 아래 */
+    body.phase-entry .toast { bottom:auto; top:54px; }
+    body.phase-entry .toast.show { animation:fdToast .3s; }
+    @keyframes fdToast { from { opacity:0; transform:translateX(-50%) translateY(-10px); } }
   </style>
 </head>
 <body>
@@ -140,7 +183,7 @@
     <span>📦 까대기 스캔
       <span class="worker-pill" id="workerPill" onclick="promptWorker()">👤 <span id="workerLabel">작업자</span></span>
     </span>
-    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.7</span>
+    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.8</span>
   </div>
 
   <!-- 작업자 입력 모달 (첫 로드 또는 변경 클릭 시) -->
@@ -160,7 +203,7 @@
   <div class="container">
 
     <!-- 모드 선택 -->
-    <div class="card">
+    <div class="card phase-waybill-only" id="modeCard">
       <div style="display:flex;gap:8px">
         <button class="btn btn-orange" id="btnModeA" onclick="setMode('batch')" style="flex:1;padding:10px;font-size:14px">A. 합배송</button>
         <button class="btn" id="btnModeB" onclick="setMode('single')" style="flex:1;padding:10px;font-size:14px;background:#888">B. 일괄</button>
@@ -175,21 +218,21 @@
     </div>
 
     <!-- 카운터 (오늘 / 큐 / 미매칭) -->
-    <div class="scan-count">
+    <div class="scan-count phase-waybill-only" id="counterCard">
       <div class="col"><div class="num" id="scanCount">0</div><div class="txt">오늘 스캔</div></div>
       <div class="col"><div class="num queue" id="queueCount">0</div><div class="txt">전송대기</div></div>
       <div class="col"><div class="num warn" id="unmatchedCount">0</div><div class="txt">미매칭</div></div>
     </div>
 
     <!-- 배치 스캔 목록 (A모드 전용) -->
-    <div class="card" id="batchCard" style="display:none">
+    <div class="card phase-waybill-only" id="batchCard" style="display:none">
       <h3>📦 합배송 스캔 목록 (<span id="batchNum">0</span>건)</h3>
       <div id="batchList" style="margin-bottom:10px"></div>
       <button class="btn btn-green" onclick="sendBatch()" id="batchSendBtn" disabled>스캔 완료 → 일괄 전송</button>
     </div>
 
     <!-- 바코드 스캔 -->
-    <div class="card">
+    <div class="card phase-waybill-only" id="scanCard">
       <h3>운송장 바코드 스캔</h3>
       <div id="cam-wrap">
         <video id="cam-video" autoplay muted playsinline></video>
@@ -206,10 +249,16 @@
     </div>
 
     <!-- 결과 -->
-    <div class="result" id="resultArea"></div>
+    <div class="result phase-waybill-only" id="resultArea"></div>
 
     <!-- 박스 내용 입력 (단건 모드, entryMode ON 시) -->
     <div class="entry" id="entrySection">
+      <!-- 박스내용 phase 미니 헤더: 운송장번호 + 뒤로 -->
+      <div class="entry-mini-header">
+        <button class="mh-back" onclick="exitEntryPhase()">← 운송장</button>
+        <span class="mh-tracking">운송장 <span id="miniHeaderTracking">—</span></span>
+        <span style="font-size:12px;opacity:.85" id="miniHeaderCount">0 항목</span>
+      </div>
       <div class="card">
         <h3>📝 박스 내용 입력</h3>
         <div class="entry-tracking">운송장 <b id="entryTracking">—</b></div>
@@ -305,17 +354,24 @@
           📦 주문 그대로 자동 채움
         </button>
 
-        <button class="btn btn-green" onclick="submitEntries()" id="submitEntriesBtn" disabled style="margin-top:8px">
+        <!-- 옛 버튼 (수동 모드에서만 가시) — 박스내용 phase 의 fixed footer 가 primary -->
+        <button class="btn btn-green legacy-only" onclick="submitEntries()" id="submitEntriesBtnLegacy" disabled style="margin-top:8px;display:none">
           ✓ 전송 → 다음 운송장
         </button>
-        <button class="btn" onclick="skipEntry()" style="background:#888;margin-top:6px">
-          ⏭ 이 박스 비워둠 (메모 없이 다음 운송장)
+        <button class="btn legacy-only" onclick="skipEntry()" style="background:#888;margin-top:6px;display:none">
+          ⏭ 이 박스 비워둠
         </button>
       </div>
     </div>
 
+    <!-- Fixed footer — 박스내용 phase 에서 visible -->
+    <div class="entry-footer">
+      <button class="submit-btn" id="submitEntriesBtn" onclick="submitEntries()" disabled>✓ 전송 → 다음 박스</button>
+      <button class="skip-btn" onclick="skipEntry()">⏭ 비워둠</button>
+    </div>
+
     <!-- 스캔 이력 -->
-    <div class="card">
+    <div class="card phase-waybill-only" id="historyCard">
       <h3>스캔 이력</h3>
       <div class="history" id="history">
         <div style="text-align:center;color:#ccc;padding:10px">스캔 이력이 없습니다</div>
@@ -373,6 +429,9 @@
         setTimeout(promptWorker, 300);
       }
     })();
+
+    // 초기 phase 클래스 — waybill phase 가 기본
+    document.body.classList.remove('phase-entry');
 
     // ── 상태 ──
     var scanHistory = JSON.parse(localStorage.getItem('scanHistory') || '[]').slice(0, 30);
@@ -1067,6 +1126,16 @@
       };
       document.getElementById('entrySection').classList.add('show');
       document.getElementById('entryTracking').textContent = tracking;
+      var miniT = document.getElementById('miniHeaderTracking');
+      if (miniT) miniT.textContent = tracking;
+      var miniC = document.getElementById('miniHeaderCount');
+      if (miniC) miniC.textContent = '0 항목';
+      // Phase state machine — body 클래스로 chrome 모두 hide + entry 풀스크린
+      document.body.classList.add('phase-entry');
+      if (entryScanMode === 'barcode') document.body.classList.add('mode-barcode');
+      else document.body.classList.remove('mode-barcode');
+      // 스크롤 위치 초기화 (이전 box 의 스크롤 잔여 제거)
+      window.scrollTo(0, 0);
       document.getElementById('itemSearch').value = '';
       document.getElementById('qtyDisplay').textContent = '1';
       // 픽커 영역은 접힌 상태로 시작
@@ -1120,6 +1189,8 @@
       if (mode !== 'barcode' && mode !== 'manual') return;
       entryScanMode = mode;
       localStorage.setItem('entryScanMode', mode);
+      if (mode === 'barcode') document.body.classList.add('mode-barcode');
+      else document.body.classList.remove('mode-barcode');
       applyEntryScanModeUI();
       // 카메라 재가동/정지
       if (entryScanMode === 'barcode') {
@@ -1257,6 +1328,17 @@
 
     function hideEntryUI() {
       document.getElementById('entrySection').classList.remove('show');
+      document.body.classList.remove('phase-entry');
+      document.body.classList.remove('mode-barcode');
+    }
+
+    /** 미니헤더 ← 운송장 버튼 — 운송장 phase 로 복귀 (현재 entries 폐기 경고 후). */
+    function exitEntryPhase() {
+      if (currentEntry && currentEntry.entries && currentEntry.entries.length > 0) {
+        if (!confirm('현재 박스 ' + currentEntry.entries.length + '개 항목이 저장되지 않습니다. 운송장 화면으로 돌아갈까요?')) return;
+      }
+      hideEntryUI();
+      nextScan();
     }
 
     function togglePicker() {
@@ -1537,6 +1619,9 @@
 
     function renderEntries() {
       var el = document.getElementById('entriesList');
+      // 미니헤더 카운트 갱신
+      var miniC = document.getElementById('miniHeaderCount');
+      if (miniC) miniC.textContent = currentEntry.entries.length + ' 항목';
       if (currentEntry.entries.length === 0) { el.innerHTML = ''; return; }
       el.innerHTML = currentEntry.entries.map(function(e, i) {
         var text = formatEntry(e);
