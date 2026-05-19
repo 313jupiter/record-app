@@ -772,9 +772,19 @@
     function sendToSheet(num) {
       var area = document.getElementById('resultArea');
       area.className = 'result show';
-      area.innerHTML = '<div class="loading"><div class="spinner"></div>시트에 전송 중...</div>';
-
       var worker = localStorage.getItem('worker') || '작업자';
+
+      // 낙관적 UI — entryMode ON 단건 모드면 GAS 응답 기다리지 않고 즉시 박스 내용 입력 화면 표시.
+      // GAS scan 호출은 백그라운드 fire-and-forget (응답이 와도 UI 갱신 안 함).
+      var optimistic = (scanMode === 'single' && entryMode);
+      if (optimistic) {
+        area.innerHTML = '<div class="result-card ok"><b>📡 ' + num + ' 스캔됨</b><p>박스 내용 입력 화면 로딩…</p></div>';
+        addHistory(num, '✅ 전송');
+        showEntryUI(num);
+      } else {
+        area.innerHTML = '<div class="loading"><div class="spinner"></div>시트에 전송 중...</div>';
+      }
+
       var retryCount = 0;
 
       function doFetch() {
@@ -783,6 +793,14 @@
           .then(function(text) {
             var result;
             try { result = JSON.parse(text); } catch (e) { result = { error: text }; }
+
+            // 낙관적 모드 — GAS 응답으로 UI 변경 안 함 (entry UI 이미 떠 있음). 큐잉만 처리.
+            if (optimistic) {
+              if (result.error) {
+                console.warn('[scan] GAS scan 에러 (낙관적 UI 영향 없음):', result.error);
+              }
+              return;
+            }
 
             if (result.error) {
               area.innerHTML = '<div class="result-card warn"><b>⚠️ 오류</b><p>' + result.error + '</p></div>';
@@ -828,6 +846,13 @@
             }
           })
           .catch(function(e) {
+            // 낙관적 모드 — UI 그대로 두고 백그라운드 큐잉만
+            if (optimistic) {
+              pendingQueue.push({ type: 'single', num: num, ts: Date.now(), worker: worker });
+              persistQueue();
+              refreshCounters();
+              return;
+            }
             if (retryCount < 1) {
               retryCount++;
               area.innerHTML = '<div class="loading"><div class="spinner"></div>재시도 중 (' + retryCount + '/1)...</div>';
@@ -1056,18 +1081,24 @@
       applyEntryScanModeUI();
       applyQtyModeUI();
 
+      // 박스내용 입력 화면 진입 — 새 UPC 스캔 수신 허용 (waybill fire() 가 scannerPaused=true 로 둠)
+      scannerPaused = false;
+
       // 바코드 모드 — 카메라 유지하고 상품 UPC 디코드. 수동 모드 — 카메라 정지 (발열 저감)
       if (entryScanMode === 'barcode') {
         if (!cameraStream) startCamera();
         var status = document.getElementById('camStatus');
         if (status) status.textContent = '📷 상품 UPC 바코드 스캔 대기 중…';
-      } else {
-        stopCamera();
-        var ind = document.getElementById('camInd');
-        if (ind) ind.style.background = '#888';
-        var status2 = document.getElementById('camStatus');
-        if (status2) status2.textContent = '⏸ 박스내용 수동 입력 중 — 카메라 일시정지';
+        // 바코드 모드엔 picker 데이터 필요 없음 — getRecentItems GAS 호출 건너뜀 (0.5–3초 절약)
+        return;
       }
+
+      // 수동 모드 — picker 필요
+      stopCamera();
+      var ind = document.getElementById('camInd');
+      if (ind) ind.style.background = '#888';
+      var status2 = document.getElementById('camStatus');
+      if (status2) status2.textContent = '⏸ 박스내용 수동 입력 중 — 카메라 일시정지';
 
       // 백그라운드로 최신 데이터 갱신 (캐시 stale 시)
       var cacheStr = localStorage.getItem('pickerData_v1_' + pickerDays);
