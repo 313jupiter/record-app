@@ -86,9 +86,7 @@
     /* 사이즈 — 220~300 (5단위 17개) 풀그리드 */
     #quickSizes{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
     #quickSizes .block.size{flex:none;min-width:0;padding:8px 0;font-size:13px;font-weight:600;text-align:center;line-height:1.1}
-    #quickSizes .block.size.in-stock{border-color:#e37400;color:#e37400}
-    #quickSizes .block.size.out-stock{opacity:.55}
-    #quickSizes .block.size.sel{opacity:1;background:#0d904f;color:#fff;border-color:#0d904f}
+    #quickSizes .block.size.sel{background:#0d904f;color:#fff;border-color:#0d904f}
     .qty-ctrl{display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0 4px 0;font-size:16px}
     .qty-ctrl button{width:38px;height:38px;font-size:20px;font-weight:700;border:2px solid #e37400;background:#fff;color:#e37400;border-radius:50%;cursor:pointer}
     .qty-ctrl button:active{transform:scale(.92)}
@@ -193,7 +191,7 @@
     <span>📦 까대기 스캔
       <span class="worker-pill" id="workerPill" onclick="promptWorker()">👤 <span id="workerLabel">작업자</span></span>
     </span>
-    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.9</span>
+    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.9.1</span>
   </div>
 
   <!-- 작업자 입력 모달 (첫 로드 또는 변경 클릭 시) -->
@@ -1532,20 +1530,10 @@
 
     function renderQuickSizes() {
       var el = document.getElementById('quickSizes');
-      // 220~300 (5단위) 17개 풀그리드 — 사이즈 누락 없음.
-      // BoxHero 등록 사이즈(in-stock)는 진한 주황 테두리·글자로 강조, 미등록은 약화. 둘 다 누를 수 있음.
-      var inStock = {};
-      if (currentEntry.selectedItem && currentEntry.selectedItem.sizes) {
-        currentEntry.selectedItem.sizes.forEach(function(s) {
-          inStock[String(s.size).trim()] = true;
-        });
-      }
+      // 220~300 (5단위) 17개 풀그리드 — 사이즈 누락 없음. 모든 사이즈 동등 표시.
       var picked = currentEntry.sizes.map(function(s) { return String(s.size).trim(); });
       el.innerHTML = STANDARD_SIZES.map(function(s) {
-        var cls = 'block size';
-        if (picked.indexOf(s) >= 0) cls += ' sel';
-        else if (inStock[s]) cls += ' in-stock';
-        else cls += ' out-stock';
+        var cls = 'block size' + (picked.indexOf(s) >= 0 ? ' sel' : '');
         return '<button class="' + cls + '" onclick="quickPickSize(\'' + esc(s) + '\')">' + esc(s) + '</button>';
       }).join('');
     }
