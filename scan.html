@@ -83,8 +83,14 @@
     .size-grid button:active{transform:scale(.96)}
     .size-grid button.picked{background:#0d904f;color:#fff;border-color:#0d904f}
     .size-input{width:100%;padding:8px;font-size:14px;border:2px dashed #ccc;border-radius:8px;text-align:center;margin-top:4px}
-    .qty-ctrl{display:flex;align-items:center;justify-content:center;gap:14px;margin:10px 0;font-size:16px}
-    .qty-ctrl button{width:42px;height:42px;font-size:22px;font-weight:700;border:2px solid #e37400;background:#fff;color:#e37400;border-radius:50%;cursor:pointer}
+    /* 사이즈 — 220~300 (5단위 17개) 풀그리드 */
+    #quickSizes{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+    #quickSizes .block.size{flex:none;min-width:0;padding:8px 0;font-size:13px;font-weight:600;text-align:center;line-height:1.1}
+    #quickSizes .block.size.in-stock{border-color:#e37400;color:#e37400}
+    #quickSizes .block.size.out-stock{opacity:.55}
+    #quickSizes .block.size.sel{opacity:1;background:#0d904f;color:#fff;border-color:#0d904f}
+    .qty-ctrl{display:flex;align-items:center;justify-content:center;gap:14px;margin:6px 0 4px 0;font-size:16px}
+    .qty-ctrl button{width:38px;height:38px;font-size:20px;font-weight:700;border:2px solid #e37400;background:#fff;color:#e37400;border-radius:50%;cursor:pointer}
     .qty-ctrl button:active{transform:scale(.92)}
     .qty-num{font-size:22px;font-weight:700;color:#333;min-width:40px;text-align:center}
     .entries-list{margin-top:10px}
@@ -115,8 +121,8 @@
     .modal .btn-secondary{background:#e8eaed;color:#666}
 
     /* 빠른 블록 입력 */
-    .quick-cat{margin-bottom:10px}
-    .quick-cat .cat-label{font-size:11px;font-weight:700;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+    .quick-cat{margin-bottom:6px}
+    .quick-cat .cat-label{font-size:10px;font-weight:700;color:#888;margin-bottom:2px;text-transform:uppercase;letter-spacing:.5px}
     .block-grid{display:flex;flex-wrap:wrap;gap:6px}
     .block{padding:8px 12px;font-size:14px;font-weight:600;border:2px solid #e8eaed;background:#fff;color:#333;border-radius:8px;cursor:pointer;touch-action:manipulation}
     .block:active{transform:scale(.95)}
@@ -187,7 +193,7 @@
     <span>📦 까대기 스캔
       <span class="worker-pill" id="workerPill" onclick="promptWorker()">👤 <span id="workerLabel">작업자</span></span>
     </span>
-    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.8</span>
+    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.9</span>
   </div>
 
   <!-- 작업자 입력 모달 (첫 로드 또는 변경 클릭 시) -->
@@ -454,6 +460,13 @@
     var PICKER_CACHE_TTL = 60 * 60 * 1000; // 1시간
     var QUICK_PRODUCT_COUNT = 8; // 빠른 블록에 노출할 상품 개수
     var QUICK_SIZE_COUNT = 12;
+    // 신발 표준 사이즈 — 폰 그리드는 항상 220~300(5단위) 17개 풀그리드.
+    // BoxHero 에 등록된 사이즈는 .in-stock 으로 강조, 미등록은 .out-stock 으로 약화 (둘 다 클릭 가능).
+    var STANDARD_SIZES = (function() {
+      var out = [];
+      for (var s = 220; s <= 300; s += 5) out.push(String(s));
+      return out;
+    })();
     var currentEntry = { tracking: '', selectedItem: null, gender: '', sizes: [], pendingQty: 1, entries: [] };
     // sizes: [{size, qty}], entries: [{item, gender, sizes:[{size,qty}]}]
     // 마지막으로 선택한 성별 — 다음 박스에서 default 유지 (대부분 박스가 같은 성별)
@@ -1519,31 +1532,21 @@
 
     function renderQuickSizes() {
       var el = document.getElementById('quickSizes');
-      // 사이즈 풀: 선택된 상품의 사이즈 + topSizes 합집합
-      var sizes = [];
-      if (currentEntry.selectedItem && currentEntry.selectedItem.sizes && currentEntry.selectedItem.sizes.length) {
-        sizes = currentEntry.selectedItem.sizes.map(function(s) { return s.size; });
-      } else if (pickerData && pickerData.topSizes) {
-        sizes = pickerData.topSizes.slice();
+      // 220~300 (5단위) 17개 풀그리드 — 사이즈 누락 없음.
+      // BoxHero 등록 사이즈(in-stock)는 진한 주황 테두리·글자로 강조, 미등록은 약화. 둘 다 누를 수 있음.
+      var inStock = {};
+      if (currentEntry.selectedItem && currentEntry.selectedItem.sizes) {
+        currentEntry.selectedItem.sizes.forEach(function(s) {
+          inStock[String(s.size).trim()] = true;
+        });
       }
-      // topSizes 로 보강
-      var top = (pickerData && pickerData.topSizes) ? pickerData.topSizes : [];
-      top.forEach(function(s) { if (sizes.indexOf(s) < 0) sizes.push(s); });
-      sizes.sort(function(a, b) {
-        var na = Number(a), nb = Number(b);
-        if (!isNaN(na) && !isNaN(nb)) return na - nb;
-        return 0;
-      });
-      sizes = sizes.slice(0, QUICK_SIZE_COUNT);
-
-      if (sizes.length === 0) {
-        el.innerHTML = '<div class="block-empty">캐시 없음</div>';
-        return;
-      }
-      var picked = currentEntry.sizes.map(function(s) { return s.size; });
-      el.innerHTML = sizes.map(function(s) {
-        var p = picked.indexOf(s) >= 0 ? ' sel' : '';
-        return '<button class="block size' + p + '" onclick="quickPickSize(\'' + esc(s) + '\')">' + esc(s) + '</button>';
+      var picked = currentEntry.sizes.map(function(s) { return String(s.size).trim(); });
+      el.innerHTML = STANDARD_SIZES.map(function(s) {
+        var cls = 'block size';
+        if (picked.indexOf(s) >= 0) cls += ' sel';
+        else if (inStock[s]) cls += ' in-stock';
+        else cls += ' out-stock';
+        return '<button class="' + cls + '" onclick="quickPickSize(\'' + esc(s) + '\')">' + esc(s) + '</button>';
       }).join('');
     }
 
