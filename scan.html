@@ -191,7 +191,7 @@
     <span>📦 까대기 스캔
       <span class="worker-pill" id="workerPill" onclick="promptWorker()">👤 <span id="workerLabel">작업자</span></span>
     </span>
-    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.9.1</span>
+    <span style="font-size:10px;font-weight:400;opacity:.8" id="buildTag">v3.9.2</span>
   </div>
 
   <!-- 작업자 입력 모달 (첫 로드 또는 변경 클릭 시) -->
@@ -321,6 +321,9 @@
           <span class="qty-num" id="qtyDisplay">1</span>
           <button onclick="adjQty(1)">+</button>
         </div>
+        <input type="text" id="entryMemo" placeholder="비고 (선택) — 예: 색상 다름 / 박스 손상 / 끈 누락"
+               autocomplete="off" maxlength="120"
+               style="width:100%;padding:9px 10px;font-size:13px;border:1.5px solid #e8eaed;border-radius:8px;outline:none;margin-bottom:6px;box-sizing:border-box">
         <button class="btn btn-orange" onclick="addEntry()" id="addEntryBtn" disabled>➕ 항목 추가</button>
 
         <!-- 검색 픽커 (접힘 — "다른 상품 검색" 클릭 시 펼침) -->
@@ -466,7 +469,7 @@
       return out;
     })();
     var currentEntry = { tracking: '', selectedItem: null, gender: '', sizes: [], pendingQty: 1, entries: [] };
-    // sizes: [{size, qty}], entries: [{item, gender, sizes:[{size,qty}]}]
+    // sizes: [{size, qty}], entries: [{item, gender, sizes:[{size,qty}], memo}]
     // 마지막으로 선택한 성별 — 다음 박스에서 default 유지 (대부분 박스가 같은 성별)
     var lastGender = localStorage.getItem('lastGender') || '';
 
@@ -1605,15 +1608,19 @@
 
     function addEntry() {
       if (!hasPendingSelection()) return;
+      var memoEl = document.getElementById('entryMemo');
+      var memo = memoEl ? (memoEl.value || '').trim() : '';
       currentEntry.entries.push({
         item: currentEntry.selectedItem,
         gender: currentEntry.gender,
-        sizes: currentEntry.sizes.slice()
+        sizes: currentEntry.sizes.slice(),
+        memo: memo
       });
-      // 다음 입력 준비 — 같은 상품 유지, 사이즈만 비움
+      // 다음 입력 준비 — 같은 상품 유지, 사이즈/비고 비움
       currentEntry.sizes = [];
       currentEntry.pendingQty = 1;
       document.getElementById('qtyDisplay').textContent = '1';
+      if (memoEl) memoEl.value = '';
       renderQuickSizes();
       renderEntries();
       updateAddBtn();
@@ -1648,7 +1655,8 @@
       var parts = entry.sizes.map(function(s) {
         return s.size ? (s.size + ' ' + s.qty) : String(s.qty);
       });
-      return name + gender + ' ' + parts.join(' / ');
+      var memo = (entry.memo || '').trim();
+      return name + gender + ' ' + parts.join(' / ') + (memo ? ' ※ ' + memo : '');
     }
 
     function formatAllEntries() {
@@ -1682,7 +1690,8 @@
           color: (e.item && e.item.color) || '',
           partNo: (e.item && e.item.partNo) || '',
           gender: e.gender || '',
-          sizes: e.sizes || []
+          sizes: e.sizes || [],
+          memo: (e.memo || '').trim()
         };
         if (e.boxheroBarcode) {
           base.barcode = e.boxheroBarcode;
