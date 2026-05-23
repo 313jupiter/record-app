@@ -40,6 +40,7 @@ const views = ['dashboard', 'agents', 'automations', 'logs'];
 const navigate = name => {
   views.forEach(v => $('#view-' + v).classList.toggle('hidden', v !== name));
   $$('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.view === name));
+  closeSidebar();
   if (name === 'dashboard') loadDashboard();
   if (name === 'agents') loadAgents();
   if (name === 'automations') loadAutomations();
@@ -49,6 +50,21 @@ $$('.nav-item').forEach(el => el.addEventListener('click', e => {
   e.preventDefault();
   navigate(el.dataset.view);
 }));
+
+// ── Mobile sidebar toggle ──
+const sidebar = $('#sidebar');
+const sidebarOverlay = $('#sidebar-overlay');
+const hamburger = $('#hamburger');
+function openSidebar() {
+  sidebar.classList.add('open');
+  sidebarOverlay.classList.add('show');
+}
+function closeSidebar() {
+  sidebar.classList.remove('open');
+  sidebarOverlay.classList.remove('show');
+}
+hamburger.addEventListener('click', openSidebar);
+sidebarOverlay.addEventListener('click', closeSidebar);
 document.addEventListener('click', e => {
   const navBtn = e.target.closest('[data-nav]');
   if (navBtn) navigate(navBtn.dataset.nav);

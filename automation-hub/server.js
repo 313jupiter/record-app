@@ -1,9 +1,11 @@
 const express = require('express');
 const path = require('path');
+const os = require('os');
 const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -234,6 +236,16 @@ app.get('/api/stats', (req, res) => {
   res.json(db.stats());
 });
 
-app.listen(PORT, () => {
-  console.log(`🤖 Automation Hub running on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`\n🤖 Automation Hub 실행 중`);
+  console.log(`   로컬:    http://localhost:${PORT}`);
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const iface of nets[name] || []) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        console.log(`   네트워크: http://${iface.address}:${PORT}  (휴대폰에서 같은 Wi-Fi로 접속)`);
+      }
+    }
+  }
+  console.log('');
 });
