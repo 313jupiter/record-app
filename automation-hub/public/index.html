@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🤖 Automation Hub</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="logo">🤖</span>
+      <div>
+        <div class="brand-title">Automation Hub</div>
+        <div class="brand-sub">AI 에이전트 통합관리</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="#" class="nav-item active" data-view="dashboard"><span>📊</span>대시보드</a>
+      <a href="#" class="nav-item" data-view="agents"><span>🧠</span>AI 에이전트</a>
+      <a href="#" class="nav-item" data-view="automations"><span>⚙️</span>자동화 프로세스</a>
+      <a href="#" class="nav-item" data-view="logs"><span>📜</span>실행 로그</a>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="status-pill" id="serverStatus">● 서버 연결됨</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- Dashboard View -->
+    <section class="view" id="view-dashboard">
+      <header class="view-header">
+        <h1>대시보드</h1>
+        <p class="view-sub">현재 등록된 AI 에이전트와 자동화 프로세스의 한눈에 보기</p>
+      </header>
+
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">등록된 에이전트</div>
+          <div class="kpi-value" id="kpi-agents">0</div>
+          <div class="kpi-sub"><span id="kpi-agents-active">0</span>개 활성</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">자동화 프로세스</div>
+          <div class="kpi-value" id="kpi-automations">0</div>
+          <div class="kpi-sub">실행 중 <span id="kpi-automations-running">0</span> · 오류 <span id="kpi-automations-error" class="error">0</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">총 실행 횟수</div>
+          <div class="kpi-value" id="kpi-runs">0</div>
+          <div class="kpi-sub">성공 <span id="kpi-success" class="success">0</span> · 실패 <span id="kpi-fail" class="error">0</span></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">성공률</div>
+          <div class="kpi-value" id="kpi-rate">—</div>
+          <div class="kpi-sub" id="kpi-tags">태그 0개</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>최근 실행 로그</h2>
+          <button class="btn-ghost" data-nav="logs">전체 보기 →</button>
+        </div>
+        <div class="log-list" id="recent-logs"></div>
+      </div>
+    </section>
+
+    <!-- Agents View -->
+    <section class="view hidden" id="view-agents">
+      <header class="view-header">
+        <h1>AI 에이전트</h1>
+        <div class="actions">
+          <input type="search" id="agent-search" placeholder="이름 / 설명 / 태그 검색" />
+          <button class="btn-primary" id="btn-new-agent">+ 새 에이전트</button>
+        </div>
+      </header>
+      <div class="card-grid" id="agent-list"></div>
+    </section>
+
+    <!-- Automations View -->
+    <section class="view hidden" id="view-automations">
+      <header class="view-header">
+        <h1>자동화 프로세스</h1>
+        <div class="actions">
+          <input type="search" id="automation-search" placeholder="이름 / 설명 / 태그 검색" />
+          <button class="btn-primary" id="btn-new-automation">+ 새 자동화</button>
+        </div>
+      </header>
+      <div class="card-grid" id="automation-list"></div>
+    </section>
+
+    <!-- Logs View -->
+    <section class="view hidden" id="view-logs">
+      <header class="view-header">
+        <h1>실행 로그</h1>
+        <div class="actions">
+          <select id="log-filter">
+            <option value="">모든 종류</option>
+            <option value="agent">에이전트</option>
+            <option value="automation">자동화</option>
+          </select>
+          <select id="log-status">
+            <option value="">모든 상태</option>
+            <option value="success">성공</option>
+            <option value="error">오류</option>
+          </select>
+          <button class="btn-ghost" id="btn-refresh-logs">↻ 새로고침</button>
+          <button class="btn-danger" id="btn-clear-logs">로그 초기화</button>
+        </div>
+      </header>
+      <div class="log-list" id="log-list"></div>
+    </section>
+  </main>
+
+  <!-- Modal: Agent Form -->
+  <div class="modal hidden" id="modal-agent">
+    <div class="modal-dialog">
+      <header class="modal-head">
+        <h3 id="agent-modal-title">새 에이전트</h3>
+        <button class="modal-close" data-close>×</button>
+      </header>
+      <div class="modal-body">
+        <input type="hidden" id="agent-id" />
+        <label>이름 *<input type="text" id="agent-name" required /></label>
+        <label>설명<textarea id="agent-description" rows="2"></textarea></label>
+        <div class="row">
+          <label>엔드포인트 URL<input type="url" id="agent-endpoint" placeholder="https://..." /></label>
+          <label class="col-3">메서드
+            <select id="agent-method">
+              <option>POST</option><option>GET</option><option>PUT</option><option>DELETE</option>
+            </select>
+          </label>
+        </div>
+        <label>헤더 (JSON)<textarea id="agent-headers" rows="2" placeholder='{"Authorization": "Bearer ..."}'></textarea></label>
+        <label>페이로드 템플릿 (JSON)<textarea id="agent-payload" rows="3" placeholder='{"prompt": "..."}'></textarea></label>
+        <div class="row">
+          <label>태그 (쉼표 구분)<input type="text" id="agent-tags" placeholder="번역, GPT, 사내" /></label>
+          <label class="col-3">상태
+            <select id="agent-status">
+              <option value="active">활성</option>
+              <option value="inactive">비활성</option>
+              <option value="error">오류</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <footer class="modal-foot">
+        <button class="btn-ghost" data-close>취소</button>
+        <button class="btn-primary" id="btn-save-agent">저장</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: Automation Form -->
+  <div class="modal hidden" id="modal-automation">
+    <div class="modal-dialog">
+      <header class="modal-head">
+        <h3 id="automation-modal-title">새 자동화</h3>
+        <button class="modal-close" data-close>×</button>
+      </header>
+      <div class="modal-body">
+        <input type="hidden" id="automation-id" />
+        <label>이름 *<input type="text" id="automation-name" required /></label>
+        <label>설명<textarea id="automation-description" rows="2"></textarea></label>
+        <div class="row">
+          <label>유형
+            <select id="automation-type">
+              <option value="manual">수동</option>
+              <option value="cron">스케줄</option>
+              <option value="webhook">웹훅</option>
+              <option value="event">이벤트</option>
+            </select>
+          </label>
+          <label>실행 환경<input type="text" id="automation-runtime" placeholder="GAS / n8n / Zapier / 사내서버" /></label>
+        </div>
+        <label>실행 URL<input type="url" id="automation-url" placeholder="https://..." /></label>
+        <label>스케줄<input type="text" id="automation-schedule" placeholder="0 9 * * MON" /></label>
+        <label>연결된 에이전트<select id="automation-linked" multiple size="4"></select></label>
+        <div class="row">
+          <label>태그 (쉼표 구분)<input type="text" id="automation-tags" /></label>
+          <label class="col-3">상태
+            <select id="automation-status">
+              <option value="running">실행 중</option>
+              <option value="paused">일시중지</option>
+              <option value="stopped">중지</option>
+              <option value="error">오류</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <footer class="modal-foot">
+        <button class="btn-ghost" data-close>취소</button>
+        <button class="btn-primary" id="btn-save-automation">저장</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal: Detail/Response -->
+  <div class="modal hidden" id="modal-detail">
+    <div class="modal-dialog">
+      <header class="modal-head">
+        <h3 id="detail-title">상세</h3>
+        <button class="modal-close" data-close>×</button>
+      </header>
+      <div class="modal-body" id="detail-body"></div>
+      <footer class="modal-foot">
+        <button class="btn-primary" data-close>닫기</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
